@@ -1,0 +1,55 @@
+# ---- Build outputs ----
+build/
+out/
+dist/
+bin/
+obj/
+*.o
+*.a
+*.elf
+*.map
+*.bin
+*.hex
+*.uf2
+*.lst
+*.d
+*.dump
+
+# ---- CMake / Ninja (if you use them later) ----
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+Makefile
+*.ninja
+.ninja_*
+cmake-build-*/
+
+# ---- Debugger / emulator artifacts ----
+*.log
+*.trace
+*.vcd
+qemu_*.log
+core
+core.*
+
+# ---- OS / editor / IDE junk ----
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# ---- Python / misc tooling (if you add scripts) ----
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# ---- Local config ----
+*.local
+*.bak
+
