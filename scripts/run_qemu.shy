@@ -1,0 +1,7 @@
+cat > scripts/run_qemu.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+qemu-system-arm -M mps2-an385 -kernel build/rtos.elf -nographic
+EOF
+chmod +x scripts/run_qemu.sh
+
