@@ -53,3 +53,5 @@ __pycache__/
 *.local
 *.bak
 
+# --- Extra materials
+notes.md
