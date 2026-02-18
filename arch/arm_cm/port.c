@@ -29,7 +29,7 @@ __attribute__((naked)) void PendSV_Handler(void) {
 
     "ldr r2, =g_first_switch\n" // r2 = &g_first_switch
     "ldr r3, [r2]           \n" // r3 = g_first_switch
-    "cbnz r3, 1f            \n" // if first_switch != 0, skip save
+    "cbnz r3, 1f            \n" // if first_switch != 0, skip save because
 
     "stmdb r0!, {r4-r11}    \n" // push r4-r11, r0 = saved_sp
     "mov r1, r0             \n" // r1 = saved_sp (preserve)

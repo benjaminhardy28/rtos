@@ -24,7 +24,8 @@ void SysTick_Handler(void)
   g_tick++;
   if(g_tick % 1000 == 0) {
     // do something every 1000 ticks (1 second)
-    os_schedule_round_robin(); // pick next task
+    os_ready_queue_rotate(g_current); // rotate current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
+    os_schedule(); // pick next task
     os_port_pendsv_trigger(); // trigger PendSV to perform context switch, will eventually only do if task is changing
   }
 }

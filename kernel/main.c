@@ -1,5 +1,6 @@
 #include "tick.h"
 #include "task.h"
+#include "scheduler.h"
 #include "../arch/arm_cm/port.h"
 #include "../bsp/qemu_mps2/systick.h"
 #include <stdint.h>
@@ -47,9 +48,10 @@ int main(void)
   //os_init();  // if you have it (init ready lists, idle task, etc.)
   
   // int os_task_create(os_tcb_t *tcb, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
-  os_task_create(&tcb0, task0, (void*)0, stack0, sizeof(stack0) / sizeof(stack0[0]));
-  os_task_create(&tcb1, task1, (void*)1, stack1, sizeof(stack1) / sizeof(stack1[1]));
-  os_set_two_tasks(&tcb0, &tcb1);
+  os_task_create(&tcb0, 1, task0, (void*)0, stack0, sizeof(stack0) / sizeof(stack0[0]));
+  os_task_create(&tcb1, 1, task1, (void*)1, stack1, sizeof(stack1) / sizeof(stack1[1]));
+  os_ready_queue_add(&tcb0);
+  os_ready_queue_add(&tcb1);
 
   os_start(); // starts scheduler ONCE (enables tick + triggers first PendSV)
 

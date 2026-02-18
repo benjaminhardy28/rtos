@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "task.h"
+#include "scheduler.h"
 #include "../arch/arm_cm/port.h"
 
 uint32_t os_tick_get(void);

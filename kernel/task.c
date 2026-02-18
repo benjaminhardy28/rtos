@@ -1,20 +1,20 @@
 #include "task.h"
+#include "scheduler.h"
 
 extern void os_port_pendsv_trigger(void);
 
-static os_tcb_t *g_current;
-static os_tcb_t *g_next;
-
 uint32_t volatile g_first_switch;
 
-static os_tcb_t *g_task0;
-static os_tcb_t *g_task1;
+os_tcb_t *g_current = NULL;
+os_tcb_t *g_next = NULL;
+
+static os_tcb_t *g_ready_head;
 
 static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
   for (;;) {}
 }
 
-int os_task_create(os_tcb_t *tcb, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
+int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
   uint32_t *sp = stack_mem + stack_words;
 
   sp = (uint32_t *)((uintptr_t)sp & ~((uintptr_t)0x7)); // align to 8 bytes
@@ -44,23 +44,13 @@ int os_task_create(os_tcb_t *tcb, os_task_fn_t entry, void *arg, uint32_t *stack
   *(--sp) = 0u; // R4:  
 
   tcb->sp = sp;
+  tcb->priority = priority;
   return 0;
 }
 
-void os_set_two_tasks(os_tcb_t *t0, os_tcb_t *t1) { // for simple round-robin scheduling between two tasks. Hardcoded for now to 2 tasks
-  g_task0 = t0;
-  g_task1 = t1;
-  g_current = t0;
-  g_next = t0;
-}
-
-void os_schedule_round_robin(void) { // simple round-robin between two tasks
-  g_next = (g_current == g_task0) ? g_task1 : g_task0;
-}
 
 void os_start(void) { // start the scheduler, picks first task to run
-  g_current = g_task0;
-  g_next = g_task0;
+
   os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority so it only runs when no other exceptions are active
   g_first_switch = 1;
 
@@ -73,16 +63,16 @@ void os_start(void) { // start the scheduler, picks first task to run
     "isb           \n"
   );
 
+  os_schedule();
+  g_current = g_next; // set current to first task before starting scheduler, so we have a valid TCB in PendSV handler for first switch
+
   os_port_pendsv_trigger(); // trigger PendSV to perform first context switch to start first task
   for(;;) {} // should never get here
 }
 
 void os_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
-  os_schedule_round_robin(); // pick next task
+  os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
+  os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch
 }
 
-os_tcb_t *os_current_tcb(void) { return g_current; }
-os_tcb_t *os_next_tcb(void) { return g_next; }
-
-void os_commit_switch(void) { g_current = g_next; }
