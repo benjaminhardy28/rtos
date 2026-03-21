@@ -45,30 +45,42 @@ int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entr
 
   tcb->sp = sp;
   tcb->priority = priority;
+  tcb->state = OS_TASK_READY;
+  tcb->wait_queue = NULL;
+  tcb->wake_tick = 0;
+  tcb->wait_result = 0;
+  tcb->next = NULL;
+  tcb->prev = NULL;
   return 0;
 }
 
-
 void os_start(void) { // start the scheduler, picks first task to run
-
-  os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority so it only runs when no other exceptions are active
+  os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority
   g_first_switch = 1;
 
-  __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // set PSP to first task's stack pointer
-
   systick_init(25000000u, 1000u); // initialize tick timer to generate interrupt every 1ms
+
   __asm volatile(
-    "movs r0, #2  \n"   // CONTROL = 2 → use PSP, privileged
-    "msr CONTROL, r0 \n"
-    "isb           \n"
+    "movs r0, #2      \n"   // CONTROL = 2 -> use PSP, privileged
+    "msr CONTROL, r0  \n"
+    "isb              \n"
   );
 
   os_schedule();
-  g_current = g_next; // set current to first task before starting scheduler, so we have a valid TCB in PendSV handler for first switch
+  g_current = g_next; // first selected task
 
-  os_port_pendsv_trigger(); // trigger PendSV to perform first context switch to start first task
-  for(;;) {} // should never get here
+  if (g_current == NULL) {
+    for (;;) {
+    }
+  }
+
+  __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // now safe
+
+  os_port_pendsv_trigger(); // trigger first context switch
+  for (;;) {
+  }
 }
+
 
 void os_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks

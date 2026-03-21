@@ -3,14 +3,15 @@
 #include "task.h"
 #include <stddef.h>
 
-typedef struct {
+typedef struct os_task_queue_t {
     os_tcb_t *head;
     os_tcb_t *tail;
 } os_task_queue_t;
 
 // Generic queue functions
 void os_task_queue_init(os_task_queue_t *queue);
-os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue); // picks the next task to run based on priority
+os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue); // pop head of queue and return it, or return NULL if queue is empty
+os_tcb_t *os_task_queue_peek_head(os_task_queue_t *queue); // peek at head of queue without removing (for scheduler to check if higher priority task is ready)
 void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb); // add TCB to queue
 void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb); // remove TCB from ready queue
 
@@ -24,8 +25,8 @@ void os_ready_queue_remove(os_tcb_t *tcb); // remove TCB from ready queue
 void os_schedule(void); // pick next task to run and set g_next
 
 // wait queue
-void os_task_block(os_task_queue_t *wait_queue);
-os_tcb_t *os_task_wake_one(os_task_queue_t *wait_queue);
+void os_task_block_locked(os_task_queue_t *wait_queue); // caller must have interrupts disabled
+os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue); // caller must have interrupts disabled
 
 // Rotate queue
 void os_ready_queue_rotate(os_tcb_t *tcb); // move the given TCB to the end of its priority's ready queue (for round-robin scheduling among tasks of same priority)

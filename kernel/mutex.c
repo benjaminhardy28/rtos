@@ -31,9 +31,9 @@ int os_mutex_lock(os_mutex_t *mutex) {
             return -1; // non-recursive mutex for now
         }
 
-        os_port_irq_restore(key);
+        os_task_block_locked(&mutex->waiters); // caller is already inside a critical section
 
-        os_task_block(&mutex->waiters); // block current task on mutex wait queue until it's available
+        os_port_irq_restore(key);
     }
 }
 
@@ -54,9 +54,7 @@ int os_mutex_unlock(os_mutex_t *mutex) {
     mutex->owner = NULL; // release ownership
  
     if (mutex->waiters.head != NULL) { // wake up the next waiting task, if any
-        os_tcb_t *task = os_task_queue_pop_head(&mutex->waiters);
-        task->state = OS_TASK_READY;
-        os_ready_queue_add(task);
+        os_task_wake_one_locked(&mutex->waiters); // caller is already inside a critical section
         os_schedule(); // pick next task to run (may be the one we just woke up if it has higher priority than current)
         if (g_next != g_current) {
             os_port_pendsv_trigger(); // trigger PendSV to perform context switch to the newly woken task if it's different from current
@@ -66,4 +64,3 @@ int os_mutex_unlock(os_mutex_t *mutex) {
     os_port_irq_restore(key);
     return 0;
 }
-

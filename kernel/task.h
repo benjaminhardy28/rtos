@@ -6,6 +6,8 @@
 #include <stddef.h>
 
 typedef void (*os_task_fn_t)(void *);
+struct os_task_queue_t;
+typedef struct os_task_queue_t os_task_queue_t;
 
 typedef enum {
   OS_TASK_READY = 0,
@@ -17,6 +19,7 @@ typedef enum {
   OS_TASK_HIGH = 0,
   OS_TASK_MEDIUM = 1,
   OS_TASK_LOW = 2,
+  OS_TASK_IDLE = 3,
 } os_task_priority_t;
 
 typedef struct os_tcb_t {
@@ -25,7 +28,7 @@ typedef struct os_tcb_t {
   os_task_state_t state; // task state (ready, blocked, etc.)
   struct os_tcb_t *next; // intrusive ready queue link
   struct os_tcb_t *prev; // previous link for doubly-linked ready queue
-  struct os_wait_queue_t *wait_queue;
+  os_task_queue_t *wait_queue;
   uint32_t wake_tick;
   int wait_result;
 } os_tcb_t;
