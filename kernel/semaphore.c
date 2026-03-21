@@ -28,7 +28,7 @@ int os_sem_take(os_sem_t *sem) {
             return 0; // successfully took the semaphore
         }
 
-        os_task_block_locked(&sem->waiters); // caller is already inside a critical section
+        os_task_block_locked(&sem->waiters, OS_WAIT_FOREVER); // caller is already inside a critical section
 
         os_port_irq_restore(key);
     }

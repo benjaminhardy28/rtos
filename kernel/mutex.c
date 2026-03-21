@@ -31,7 +31,7 @@ int os_mutex_lock(os_mutex_t *mutex) {
             return -1; // non-recursive mutex for now
         }
 
-        os_task_block_locked(&mutex->waiters); // caller is already inside a critical section
+        os_task_block_locked(&mutex->waiters, OS_WAIT_FOREVER); // caller is already inside a critical section
 
         os_port_irq_restore(key);
     }

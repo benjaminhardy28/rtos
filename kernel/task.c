@@ -51,6 +51,8 @@ int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entr
   tcb->wait_result = 0;
   tcb->next = NULL;
   tcb->prev = NULL;
+  tcb->timeout_next = NULL;
+  tcb->timeout_prev = NULL;
   return 0;
 }
 
@@ -87,4 +89,3 @@ void os_yield(void) { // cooperative yield: asks kernel to switch away from curr
   os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch
 }
-

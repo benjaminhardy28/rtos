@@ -1,8 +1,75 @@
 #include "scheduler.h"
+#include "tick.h"
 
 #define NUM_PRIORITIES 4
 
 static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
+static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
+
+static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
+    return (int32_t)(now - wake_tick) >= 0;
+}
+
+static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
+    os_tcb_t *iter;
+
+    if (!tcb) {
+        return;
+    }
+
+    tcb->timeout_next = NULL;
+    tcb->timeout_prev = NULL;
+
+    if (g_timeout_queue.head == NULL) {
+        g_timeout_queue.head = tcb;
+        g_timeout_queue.tail = tcb;
+        return;
+    }
+
+    iter = g_timeout_queue.head;
+    while (iter != NULL && !os_tick_reached(iter->wake_tick, tcb->wake_tick)) {
+        iter = iter->timeout_next;
+    }
+
+    if (iter == NULL) {
+        tcb->timeout_prev = g_timeout_queue.tail;
+        g_timeout_queue.tail->timeout_next = tcb;
+        g_timeout_queue.tail = tcb;
+        return;
+    }
+
+    tcb->timeout_next = iter;
+    tcb->timeout_prev = iter->timeout_prev;
+
+    if (iter->timeout_prev != NULL) {
+        iter->timeout_prev->timeout_next = tcb;
+    } else {
+        g_timeout_queue.head = tcb;
+    }
+
+    iter->timeout_prev = tcb;
+}
+
+static void os_timeout_queue_remove(os_tcb_t *tcb) {
+    if (!tcb) {
+        return;
+    }
+
+    if (tcb->timeout_prev != NULL) {
+        tcb->timeout_prev->timeout_next = tcb->timeout_next;
+    } else if (g_timeout_queue.head == tcb) {
+        g_timeout_queue.head = tcb->timeout_next;
+    }
+
+    if (tcb->timeout_next != NULL) {
+        tcb->timeout_next->timeout_prev = tcb->timeout_prev;
+    } else if (g_timeout_queue.tail == tcb) {
+        g_timeout_queue.tail = tcb->timeout_prev;
+    }
+
+    tcb->timeout_next = NULL;
+    tcb->timeout_prev = NULL;
+}
 
 void os_task_queue_init(os_task_queue_t *queue) {
     if (!queue) return;
@@ -96,7 +163,7 @@ void os_schedule(void){
 
 // wait queue functions
 
-void os_task_block_locked(os_task_queue_t *wait_queue)
+void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks)
 {
     os_tcb_t *current;
 
@@ -110,7 +177,14 @@ void os_task_block_locked(os_task_queue_t *wait_queue)
     os_ready_queue_remove(current); // remove current task from ready queue
     current->state = OS_TASK_BLOCKED; // set task state to blocked
     current->wait_queue = wait_queue; // record which wait queue owns the blocked task
+    current->wake_tick = OS_WAIT_FOREVER;
+    current->wait_result = 0;
     os_task_queue_add(wait_queue, current); // add current task to the specified wait queue
+
+    if (timeout_ticks != OS_WAIT_FOREVER) {
+        current->wake_tick = os_tick_get() + timeout_ticks;
+        os_timeout_queue_insert_sorted(current);
+    }
  
     os_schedule(); // pick next task to run (since current is now blocked, we need to schedule another task)
 
@@ -129,12 +203,46 @@ os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
 
     tcb = os_task_queue_pop_head(wait_queue); // wake up the next waiting task, if any
     if (tcb != NULL) {
+        if (tcb->wake_tick != OS_WAIT_FOREVER) {
+            os_timeout_queue_remove(tcb);
+        }
         tcb->wait_queue = NULL;
+        tcb->wake_tick = OS_WAIT_FOREVER;
+        tcb->wait_result = 0;
         tcb->state = OS_TASK_READY; // set task state to ready
         os_ready_queue_add(tcb); // add the task to the ready queue so it can be scheduled
     }
 
     return tcb;
+}
+
+void os_process_timeouts(void) {
+    os_tcb_t *tcb;
+    uint32_t now;
+
+    now = os_tick_get();
+    tcb = g_timeout_queue.head;
+
+    while (tcb != NULL && os_tick_reached(now, tcb->wake_tick)) { // task's wake tick has been reached, unblock it with a timeout result
+        os_tcb_t *next = tcb->timeout_next;
+
+        os_timeout_queue_remove(tcb);
+        if (tcb->wait_queue != NULL) {
+            os_task_queue_remove(tcb->wait_queue, tcb);
+            tcb->wait_queue = NULL;
+        }
+        tcb->wake_tick = OS_WAIT_FOREVER; // reset wake_tick since we're no longer using it for timeout
+        tcb->wait_result = -1;
+        tcb->state = OS_TASK_READY;
+        os_ready_queue_add(tcb);
+
+        tcb = next;
+    }
+
+    os_schedule();
+    if (g_next != g_current) {
+        os_port_pendsv_trigger();
+    }
 }
 
 void os_commit_switch(void) {

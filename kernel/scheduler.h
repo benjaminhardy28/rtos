@@ -25,8 +25,9 @@ void os_ready_queue_remove(os_tcb_t *tcb); // remove TCB from ready queue
 void os_schedule(void); // pick next task to run and set g_next
 
 // wait queue
-void os_task_block_locked(os_task_queue_t *wait_queue); // caller must have interrupts disabled
+void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks); // caller must have interrupts disabled
 os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue); // caller must have interrupts disabled
+void os_process_timeouts(void);
 
 // Rotate queue
 void os_ready_queue_rotate(os_tcb_t *tcb); // move the given TCB to the end of its priority's ready queue (for round-robin scheduling among tasks of same priority)
