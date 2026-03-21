@@ -22,9 +22,12 @@ typedef enum {
 typedef struct os_tcb_t {
   uint32_t *sp; // stack pointer
   os_task_priority_t priority; // task priority
+  os_task_state_t state; // task state (ready, blocked, etc.)
   struct os_tcb_t *next; // intrusive ready queue link
   struct os_tcb_t *prev; // previous link for doubly-linked ready queue
-  os_task_state_t state; // task state (ready, blocked, etc.)
+  struct os_wait_queue_t *wait_queue;
+  uint32_t wake_tick;
+  int wait_result;
 } os_tcb_t;
 
 extern os_tcb_t *g_current;

@@ -52,3 +52,22 @@ __attribute__((naked)) void PendSV_Handler(void) {
     "bx lr                  \n" // exception return (restores hw frame)
   );
 }
+
+uint32_t os_port_irq_save(void) {
+  uint32_t primask;
+  __asm volatile(
+    "mrs %0, PRIMASK \n" // read current PRIMASK value
+    "cpsid i         \n" // disable interrupts
+    : "=r"(primask)
+    :
+    : "memory");
+  return primask;
+}
+
+void os_port_irq_restore(uint32_t primask) {
+  __asm volatile(
+    "msr PRIMASK, %0 \n" // restore PRIMASK to re-enable interrupts if they were previously enabled (if primask == 0)
+    :
+    : "r"(primask)
+    : "memory");
+}
