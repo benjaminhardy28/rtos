@@ -25,7 +25,7 @@ OS_KERNEL_TEXT void os_kernel_delay_ticks(uint32_t ticks)
   uint32_t key;
 
   if (ticks == 0u) {
-    os_yield();
+    os_kernel_yield();
     return;
   }
 

@@ -1,5 +1,9 @@
 // arch/arm_cm3/port.c
 #include "port.h"
+#include "../../include/os/syscall.h"
+#include "../../kernel/mutex.h"
+#include "../../kernel/semaphore.h"
+#include "../../kernel/tick.h"
 
 extern uint32_t __user_flash_region_start__;
 extern uint32_t __user_flash_region_end__;
@@ -38,6 +42,17 @@ extern volatile uint32_t g_first_switch;
 #define MPU_ATTR_SRAM        ((1u << 17) | (1u << 16))
 #define MPU_REGION_ENABLE    (1u << 0)
 
+typedef struct {
+  uint32_t r0;
+  uint32_t r1;
+  uint32_t r2;
+  uint32_t r3;
+  uint32_t r12;
+  uint32_t lr;
+  uint32_t pc;
+  uint32_t xpsr;
+} os_exc_frame_t;
+
 static uint32_t os_port_mpu_size_encode(uint32_t size_bytes) {
   uint32_t encode = 0;
 
@@ -53,6 +68,49 @@ static void os_port_mpu_region_configure(uint32_t region, uintptr_t base, uint32
   MPU_RNR = region;
   MPU_RBAR = base;
   MPU_RASR = attr | os_port_mpu_size_encode(size_bytes) | MPU_REGION_ENABLE;
+}
+
+OS_KERNEL_TEXT static void os_port_svc_dispatch(os_exc_frame_t *frame) { // implicit casts r0 input pointer to exception frame, and also uses r0-r3 for syscall_id and arguments, and return value
+  uint32_t ret;
+
+  if (frame == NULL) {
+    return;
+  }
+
+  ret = (uint32_t)-1; // default return value for unrecognized syscalls, can be overridden by specific syscall handlers below
+
+  switch ((os_syscall_id_t)frame->r0) {
+    case OS_SYSCALL_YIELD:
+      os_kernel_yield();
+      ret = 0u;
+      break;
+
+    case OS_SYSCALL_DELAY_TICKS:
+      os_kernel_delay_ticks(frame->r1);
+      ret = 0u;
+      break;
+
+    case OS_SYSCALL_SEM_TAKE:
+      ret = (uint32_t)os_kernel_sem_take((os_sem_t *)(uintptr_t)frame->r1);
+      break;
+
+    case OS_SYSCALL_SEM_GIVE:
+      ret = (uint32_t)os_kernel_sem_give((os_sem_t *)(uintptr_t)frame->r1);
+      break;
+
+    case OS_SYSCALL_MUTEX_LOCK:
+      ret = (uint32_t)os_kernel_mutex_lock((os_mutex_t *)(uintptr_t)frame->r1);
+      break;
+
+    case OS_SYSCALL_MUTEX_UNLOCK:
+      ret = (uint32_t)os_kernel_mutex_unlock((os_mutex_t *)(uintptr_t)frame->r1);
+      break;
+
+    default:
+      break;
+  }
+
+  frame->r0 = ret;
 }
 
 OS_KERNEL_TEXT void os_port_set_pendsv_priority_lowest(void) { // set PendSV to lowest priority by writing 0xFF to its priority field in SCB_SHPR3
@@ -93,7 +151,14 @@ OS_KERNEL_TEXT void os_port_mpu_init(void) {
   __asm volatile("isb");
 }
 
-OS_KERNEL_TEXT void SVC_Handler(void) {
+OS_KERNEL_TEXT __attribute__((naked)) void SVC_Handler(void) {
+  __asm volatile(
+    "tst lr, #4                \n" // check EXC_RETURN bit 2 to determine which stack pointer to use, this tells us where the hardware frame is (MSP for handler mode, PSP for thread mode)
+    "ite eq                    \n" // if-then-else to conditionally execute next two instructions based on result of tst
+    "mrseq r0, msp             \n" // r0 now points to the exception frame (stacked registers) for the SVC call
+    "mrsne r0, psp             \n" // r0 now points to the exception frame (stacked registers) for the SVC call
+    "b os_port_svc_dispatch    \n" // branch to C handler to process the SVC call, passing pointer to exception frame in r0
+  );
 }
 
 OS_KERNEL_TEXT __attribute__((naked)) void PendSV_Handler(void) {
