@@ -3,14 +3,14 @@
 
 #define NUM_PRIORITIES 4
 
-static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
-static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
+OS_KERNEL_BSS static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
+OS_KERNEL_BSS static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
 
-static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
+OS_KERNEL_TEXT static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
     return (int32_t)(now - wake_tick) >= 0;
 }
 
-static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
+OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
     os_tcb_t *iter;
 
     if (!tcb) {
@@ -50,7 +50,7 @@ static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
     iter->timeout_prev = tcb;
 }
 
-static void os_timeout_queue_remove(os_tcb_t *tcb) {
+OS_KERNEL_TEXT static void os_timeout_queue_remove(os_tcb_t *tcb) {
     if (!tcb) {
         return;
     }
@@ -71,13 +71,13 @@ static void os_timeout_queue_remove(os_tcb_t *tcb) {
     tcb->timeout_prev = NULL;
 }
 
-void os_task_queue_init(os_task_queue_t *queue) {
+OS_KERNEL_TEXT void os_task_queue_init(os_task_queue_t *queue) {
     if (!queue) return;
     queue->head = NULL;
     queue->tail = NULL;
 }
 
-os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
+OS_KERNEL_TEXT os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
     // Pops the head of the queue and returns it, or returns NULL if the queue is empty
     if (queue->head) {
         os_tcb_t *prev_head = queue->head;
@@ -87,14 +87,14 @@ os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
     return NULL; // no ready tasks found
 }
 
-os_tcb_t *os_task_queue_peek_head(os_task_queue_t *queue){
+OS_KERNEL_TEXT os_tcb_t *os_task_queue_peek_head(os_task_queue_t *queue){
     if (queue->head) {
         return queue->head;
     }
     return NULL; // no ready tasks found
 }
 
-void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
+OS_KERNEL_TEXT void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
     if (!queue || !tcb) return;
     tcb->next = NULL;
     tcb->prev = queue->tail;
@@ -106,7 +106,7 @@ void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
     queue->tail = tcb;
 }
 
-void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
+OS_KERNEL_TEXT void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
     if (!queue || !tcb) return;
     if(tcb->prev) {
         tcb->prev->next = tcb->next;
@@ -124,7 +124,7 @@ void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
 
 // Ready queue functions just call the generic queue functions with the appropriate priority queue
 
-void os_ready_queue_rotate(os_tcb_t *tcb){
+OS_KERNEL_TEXT void os_ready_queue_rotate(os_tcb_t *tcb){
     if (!tcb) return;
     os_task_queue_t *queue = &g_priorities[tcb->priority];
     if (queue->head != tcb || tcb->next == NULL) {
@@ -143,15 +143,15 @@ void os_ready_queue_rotate(os_tcb_t *tcb){
     queue->tail = tcb;
 }
 
-void os_ready_queue_add(os_tcb_t *tcb){
+OS_KERNEL_TEXT void os_ready_queue_add(os_tcb_t *tcb){
     os_task_queue_add(&g_priorities[tcb->priority], tcb);
 }
 
-void os_ready_queue_remove(os_tcb_t *tcb){
+OS_KERNEL_TEXT void os_ready_queue_remove(os_tcb_t *tcb){
     os_task_queue_remove(&g_priorities[tcb->priority], tcb);
 }
 
-void os_schedule(void){
+OS_KERNEL_TEXT void os_schedule(void){
     for (uint8_t p = 0; p < NUM_PRIORITIES; p++) {
         g_next = os_task_queue_peek_head(&g_priorities[p]);
         if (g_next != NULL) {
@@ -163,7 +163,7 @@ void os_schedule(void){
 
 // wait queue functions
 
-void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks)
+OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks)
 {
     os_tcb_t *current;
 
@@ -194,7 +194,7 @@ void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks)
 }
 
 
-os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
+OS_KERNEL_TEXT os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
     os_tcb_t *tcb;
 
     if (!wait_queue) {
@@ -216,7 +216,7 @@ os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
     return tcb;
 }
 
-void os_process_timeouts(void) {
+OS_KERNEL_TEXT void os_process_timeouts(void) {
     os_tcb_t *tcb;
     uint32_t now;
 
@@ -245,7 +245,7 @@ void os_process_timeouts(void) {
     }
 }
 
-void os_commit_switch(void) {
+OS_KERNEL_TEXT void os_commit_switch(void) {
     os_tcb_t *prev = g_current;
 
     if (g_next == NULL) {
@@ -261,10 +261,10 @@ void os_commit_switch(void) {
 }
 
 
-os_tcb_t *os_current_tcb(void){
+OS_KERNEL_TEXT os_tcb_t *os_current_tcb(void){
     return g_current;
 }
 
-os_tcb_t *os_next_tcb(void) {
+OS_KERNEL_TEXT os_tcb_t *os_next_tcb(void) {
     return g_next ? g_next : g_current;
 }

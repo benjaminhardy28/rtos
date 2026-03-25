@@ -4,12 +4,16 @@ typedef void (*isr_t)(void);
 
 extern uint32_t _estack;
 
-extern uint32_t _sidata;
-extern uint32_t _sdata;
-extern uint32_t _edata;
-
-extern uint32_t _sbss;
-extern uint32_t _ebss;
+extern uint32_t __user_data_load__;
+extern uint32_t __user_data_start__;
+extern uint32_t __user_data_end__;
+extern uint32_t __kernel_data_load__;
+extern uint32_t __kernel_data_start__;
+extern uint32_t __kernel_data_end__;
+extern uint32_t __user_bss_start__;
+extern uint32_t __user_bss_end__;
+extern uint32_t __kernel_bss_start__;
+extern uint32_t __kernel_bss_end__;
 
 int main(void);
 
@@ -44,21 +48,28 @@ const isr_t isr_vector[] = {
   SysTick_Handler
 };
 
+static void os_copy_words(uint32_t *dst, const uint32_t *src, uint32_t *end)
+{
+  while (dst < end) {
+    *dst++ = *src++;
+  }
+}
+
+static void os_zero_words(uint32_t *dst, uint32_t *end)
+{
+  while (dst < end) {
+    *dst++ = 0;
+  }
+}
+
 // Initialize memory
 void Reset_Handler(void)
 {   // qemu execution pauses here when using -S since this is start of reset handler
-  // store .data in RAM for initiliazed global and static variables
-  uint32_t *src = &_sidata;
-  uint32_t *dst = &_sdata;
-  while (dst < &_edata) {
-    *dst++ = *src++;
-  }
+  os_copy_words(&__user_data_start__, &__user_data_load__, &__user_data_end__);
+  os_copy_words(&__kernel_data_start__, &__kernel_data_load__, &__kernel_data_end__);
 
-  // zero values in .bss section, also storing in RAM
-  dst = &_sbss;
-  while (dst < &_ebss) {
-    *dst++ = 0;
-  }
+  os_zero_words(&__user_bss_start__, &__user_bss_end__);
+  os_zero_words(&__kernel_bss_start__, &__kernel_bss_end__);
 
   // call main script
   (void)main();

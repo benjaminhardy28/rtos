@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "../arch/arm_cm/port.h"
 #include "../bsp/qemu_mps2/systick.h"
+#include "../include/os/section.h"
 #include "../include/os/task.h"
 #include <stddef.h>
 

@@ -3,7 +3,7 @@
 #include "../arch/arm_cm/port.h"
 #include "../include/os/syscall.h"
 
-int os_sem_init(os_sem_t *sem, int32_t initial_count) {
+OS_KERNEL_TEXT int os_sem_init(os_sem_t *sem, int32_t initial_count) {
     if (!sem || initial_count < 0) {
         return -1;
     }
@@ -13,11 +13,11 @@ int os_sem_init(os_sem_t *sem, int32_t initial_count) {
     return 0;
 }
 
-int os_sem_take(os_sem_t *sem) {
+OS_USER_TEXT int os_sem_take(os_sem_t *sem) {
     return (int)os_port_svc_call1(OS_SYSCALL_SEM_TAKE, (uint32_t)(uintptr_t)sem);
 }
 
-int os_kernel_sem_take(os_sem_t *sem) {
+OS_KERNEL_TEXT int os_kernel_sem_take(os_sem_t *sem) {
     uint32_t key;
 
     if (!sem) {
@@ -39,11 +39,11 @@ int os_kernel_sem_take(os_sem_t *sem) {
     }
 }
 
-int os_sem_give(os_sem_t *sem) {
+OS_USER_TEXT int os_sem_give(os_sem_t *sem) {
     return (int)os_port_svc_call1(OS_SYSCALL_SEM_GIVE, (uint32_t)(uintptr_t)sem);
 }
 
-int os_kernel_sem_give(os_sem_t *sem) {
+OS_KERNEL_TEXT int os_kernel_sem_give(os_sem_t *sem) {
     uint32_t key;
     os_tcb_t *task;
 

@@ -4,18 +4,18 @@
 
 extern void os_port_pendsv_trigger(void);
 
-uint32_t volatile g_first_switch;
+OS_KERNEL_BSS uint32_t volatile g_first_switch;
 
-os_tcb_t *g_current = NULL;
-os_tcb_t *g_next = NULL;
+OS_KERNEL_BSS os_tcb_t *g_current = NULL;
+OS_KERNEL_BSS os_tcb_t *g_next = NULL;
 
-static os_tcb_t *g_ready_head;
+OS_KERNEL_BSS static os_tcb_t *g_ready_head;
 
-static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
+OS_KERNEL_TEXT static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
   for (;;) {}
 }
 
-int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
+OS_KERNEL_TEXT int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
   uint32_t *sp = stack_mem + stack_words;
 
   sp = (uint32_t *)((uintptr_t)sp & ~((uintptr_t)0x7)); // align to 8 bytes
@@ -57,8 +57,9 @@ int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entr
   return 0;
 }
 
-void os_start(void) { // start the scheduler, picks first task to run
+OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to run
   os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority
+  os_port_mpu_init();
   g_first_switch = 1;
 
   systick_init(25000000u, 1000u); // initialize tick timer to generate interrupt every 1ms
@@ -85,11 +86,11 @@ void os_start(void) { // start the scheduler, picks first task to run
 }
 
 
-void os_yield(void) {
+OS_USER_TEXT void os_yield(void) {
   (void)os_port_svc_call0(OS_SYSCALL_YIELD);
 }
 
-void os_kernel_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
+OS_KERNEL_TEXT void os_kernel_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
   os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch

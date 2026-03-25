@@ -1,13 +1,15 @@
 #pragma once
 #include "../../kernel/task.h"
+#include "../../include/os/section.h"
 #include <stdint.h>
 
-void os_port_set_pendsv_priority_lowest(void); // set PendSV to lowest priority
-void os_port_pendsv_trigger(void); // trigger PendSV exception to perform context switch
-void SVC_Handler(void);
+OS_KERNEL_TEXT void os_port_set_pendsv_priority_lowest(void); // set PendSV to lowest priority
+OS_KERNEL_TEXT void os_port_pendsv_trigger(void); // trigger PendSV exception to perform context switch
+OS_KERNEL_TEXT void os_port_mpu_init(void);
+OS_KERNEL_TEXT void SVC_Handler(void);
 
-uint32_t os_port_irq_save(void); // disable interrupts and return previous PRIMASK value
-void os_port_irq_restore(uint32_t primask); // restore PRIMASK to re-enable interrupts if they were previously enabled (if primask == 0)
+OS_KERNEL_TEXT uint32_t os_port_irq_save(void); // disable interrupts and return previous PRIMASK value
+OS_KERNEL_TEXT void os_port_irq_restore(uint32_t primask); // restore PRIMASK to re-enable interrupts if they were previously enabled (if primask == 0)
 
 static inline uint32_t os_port_svc_call0(uint32_t syscall_id) {
   register uint32_t r0 __asm("r0") = syscall_id;

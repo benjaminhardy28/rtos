@@ -3,32 +3,33 @@
 #include "scheduler.h"
 #include "../arch/arm_cm/port.h"
 #include "../bsp/qemu_mps2/systick.h"
+#include "../include/os/section.h"
 #include <stdint.h>
 
-volatile uint32_t g_data = 0x11223344;
-volatile uint32_t g_bss;
+OS_USER_DATA volatile uint32_t g_data = 0x11223344;
+OS_USER_BSS volatile uint32_t g_bss;
 
-volatile uint32_t g_reached_main;
+OS_USER_BSS volatile uint32_t g_reached_main;
 
-static os_tcb_t tcb0;
-static os_tcb_t tcb1;
+OS_KERNEL_BSS static os_tcb_t tcb0;
+OS_KERNEL_BSS static os_tcb_t tcb1;
 
-static uint32_t stack0[256];
-static uint32_t stack1[256];
+OS_USER_STACK static uint32_t stack0[256];
+OS_USER_STACK static uint32_t stack1[256];
 
 // idle task for when no other tasks are ready to run (just loops forever)
-static os_tcb_t idle_tcb;
-static uint32_t idle_stack[128];
+OS_KERNEL_BSS static os_tcb_t idle_tcb;
+OS_USER_STACK static uint32_t idle_stack[128];
 
-static void os_idle_task(void *arg) {
+OS_USER_TEXT static void os_idle_task(void *arg) {
     (void)arg;
     for (;;) {
     }
 }
 // temporary tasks
-volatile uint32_t g_last_task_id;
+OS_USER_BSS volatile uint32_t g_last_task_id;
 
-static void task0(void *arg) {
+OS_USER_TEXT static void task0(void *arg) {
   (void)arg;
   systick_enable(); // enable SysTick interrupt after first context switch to avoid
   for (;;) {
@@ -38,7 +39,7 @@ static void task0(void *arg) {
   }
 }
 
-static void task1(void *arg) {
+OS_USER_TEXT static void task1(void *arg) {
   (void)arg;
   for (;;) {
     // do stuff
@@ -48,7 +49,7 @@ static void task1(void *arg) {
 }
 
 
-int main(void)
+OS_USER_TEXT int main(void)
 {
   g_reached_main = 0xA5A5A5A5;
   
@@ -68,4 +69,3 @@ int main(void)
     // should never get here
   }
 }
-
