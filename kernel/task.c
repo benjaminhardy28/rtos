@@ -1,5 +1,6 @@
 #include "task.h"
 #include "scheduler.h"
+#include "../include/os/syscall.h"
 
 extern void os_port_pendsv_trigger(void);
 
@@ -84,7 +85,11 @@ void os_start(void) { // start the scheduler, picks first task to run
 }
 
 
-void os_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
+void os_yield(void) {
+  (void)os_port_svc_call0(OS_SYSCALL_YIELD);
+}
+
+void os_kernel_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
   os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch

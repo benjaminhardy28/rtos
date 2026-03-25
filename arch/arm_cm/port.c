@@ -22,6 +22,9 @@ void os_port_pendsv_trigger(void) {
   SCB_ICSR |= ICSR_PENDSVSET; // Set PendSV pending bit to trigger PendSV exception for context switch
 }
 
+void SVC_Handler(void) {
+}
+
 __attribute__((naked)) void PendSV_Handler(void) {
   __asm volatile(
     "push {lr}              \n" // save EXC_RETURN
@@ -29,7 +32,7 @@ __attribute__((naked)) void PendSV_Handler(void) {
 
     "ldr r2, =g_first_switch\n" // r2 = &g_first_switch
     "ldr r3, [r2]           \n" // r3 = g_first_switch
-    "cbnz r3, 1f            \n" // if first_switch != 0, skip save because
+    "cbnz r3, 1f            \n" // if first_switch != 0, skip save because we haven't started the scheduler yet and don't have a current task to save context for
 
     "stmdb r0!, {r4-r11}    \n" // push r4-r11, r0 = saved_sp
     "mov r1, r0             \n" // r1 = saved_sp (preserve)

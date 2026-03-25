@@ -1,4 +1,5 @@
 #include "tick.h"
+#include "../include/os/syscall.h"
 #include <stdint.h>
 
 uint32_t volatile g_tick;
@@ -15,6 +16,11 @@ uint32_t os_ticks_from_ms(uint32_t ms)
 }
 
 void os_delay_ticks(uint32_t ticks)
+{
+  (void)os_port_svc_call1(OS_SYSCALL_DELAY_TICKS, ticks);
+}
+
+void os_kernel_delay_ticks(uint32_t ticks)
 {
   uint32_t key;
 

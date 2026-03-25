@@ -1,0 +1,10 @@
+#pragma once
+
+typedef enum {
+  OS_SYSCALL_YIELD = 0,
+  OS_SYSCALL_DELAY_TICKS = 1,
+  OS_SYSCALL_SEM_TAKE = 2,
+  OS_SYSCALL_SEM_GIVE = 3,
+  OS_SYSCALL_MUTEX_LOCK = 4,
+  OS_SYSCALL_MUTEX_UNLOCK = 5,
+} os_syscall_id_t;
