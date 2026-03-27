@@ -59,28 +59,28 @@ OS_KERNEL_TEXT int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os
 
 OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to run
   os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority
-  os_port_mpu_init();
+  os_port_mpu_init(); // initialize MPU to set memory permissions for user/kernel regions
   g_first_switch = 1;
 
-  systick_init(25000000u, 1000u); // initialize tick timer to generate interrupt every 1ms
-
-  __asm volatile(
-    "movs r0, #2      \n"   // CONTROL = 2 -> use PSP, privileged
-    "msr CONTROL, r0  \n"
-    "isb              \n"
-  );
+  systick_init(25000000u, 1000u); // initialize tick timer to generate interrupt every 1ms, pass CPU frequency and desired tick frequency
 
   os_schedule();
   g_current = g_next; // first selected task
-
   if (g_current == NULL) {
     for (;;) {
     }
   }
 
-  __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // now safe
+  __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // load PSP with the first task's stack pointer so that when we switch to thread mode, it will use the task's stack
+  systick_enable(); // enable SysTick interrupt
+  __asm volatile(
+    "movs r0, #2      \n"   // CONTROL = 2 -> use PSP, privileged since we are currently executing os_start which is a kernel function, but we will switch to unprivileged when we perform the first context switch in PendSV handler
+    "msr CONTROL, r0  \n" 
+    "isb              \n" // flush pipeline to ensure subsequent instructions execute with new CONTROL settings
+  );
 
   os_port_pendsv_trigger(); // trigger first context switch
+  
   for (;;) {
   }
 }

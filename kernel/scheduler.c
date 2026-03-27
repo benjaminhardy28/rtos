@@ -185,9 +185,8 @@ OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t t
         current->wake_tick = os_tick_get() + timeout_ticks;
         os_timeout_queue_insert_sorted(current);
     }
- 
-    os_schedule(); // pick next task to run (since current is now blocked, we need to schedule another task)
 
+    os_schedule(); // pick next task to run
     if (g_next != g_current) {
         os_port_pendsv_trigger(); // trigger PendSV to perform context switch to the newly scheduled task if it's different from current
     }

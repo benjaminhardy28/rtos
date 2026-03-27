@@ -187,6 +187,10 @@ OS_KERNEL_TEXT __attribute__((naked)) void PendSV_Handler(void) {
     "ldmia r0!, {r4-r11}    \n" // pop r4-r11, r0 = PSP to hw frame
     "msr psp, r0            \n" // PSP = next PSP
 
+    "movs r1, #3            \n" // thread mode: PSP + unprivileged
+    "msr CONTROL, r1        \n"
+    "isb                    \n"
+
     "pop {lr}               \n" // restore EXC_RETURN
     "bx lr                  \n" // exception return (restores hw frame)
   );

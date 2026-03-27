@@ -31,20 +31,29 @@ OS_USER_BSS volatile uint32_t g_last_task_id;
 
 OS_USER_TEXT static void task0(void *arg) {
   (void)arg;
-  systick_enable(); // enable SysTick interrupt after first context switch to avoid
+  int i = 0;
   for (;;) {
     // do stuff
     g_last_task_id = 0;
     //os_yield();
+    if(i%100 == 0) {
+      os_delay_ticks(10); // delay for 10 ticks every 1000 iterations to test blocking and timeouts
+    }
+    i++;
   }
 }
 
 OS_USER_TEXT static void task1(void *arg) {
   (void)arg;
+  int i = 0;
   for (;;) {
     // do stuff
     g_last_task_id = 1;
     //os_yield();
+    if(i%100 == 0) {
+      os_delay_ticks(10); // delay for 10 ticks every 1000 iterations to test blocking and timeouts
+    }
+    i++;
   }
 }
 
