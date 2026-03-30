@@ -1,6 +1,7 @@
 // arch/arm_cm3/port.c
 #include "port.h"
 #include "../../include/os/syscall.h"
+#include "../../kernel/task.h"
 #include "../../kernel/mutex.h"
 #include "../../kernel/semaphore.h"
 #include "../../kernel/tick.h"
@@ -104,6 +105,10 @@ OS_KERNEL_TEXT static void os_port_svc_dispatch(os_exc_frame_t *frame) { // impl
 
     case OS_SYSCALL_MUTEX_UNLOCK:
       ret = (uint32_t)os_kernel_mutex_unlock((os_mutex_t *)(uintptr_t)frame->r1);
+      break;
+
+    case OS_SYSCALL_TASK_CREATE:
+      ret = (uint32_t)os_kernel_task_create((const os_task_create_args_t *)(uintptr_t)frame->r1);
       break;
 
     default:

@@ -7,4 +7,5 @@ typedef enum {
   OS_SYSCALL_SEM_GIVE = 3,
   OS_SYSCALL_MUTEX_LOCK = 4,
   OS_SYSCALL_MUTEX_UNLOCK = 5,
+  OS_SYSCALL_TASK_CREATE = 6,
 } os_syscall_id_t;

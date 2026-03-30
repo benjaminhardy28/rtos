@@ -27,6 +27,7 @@ OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
     }
 
     iter = g_timeout_queue.head;
+    // after the loop, iter contains the first wake_tick greater than tcb's wake_tick, or NULL if tcb has the latest wake_tick and should be at the end of the queue
     while (iter != NULL && !os_tick_reached(iter->wake_tick, tcb->wake_tick)) {
         iter = iter->timeout_next;
     }
@@ -38,8 +39,9 @@ OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
         return;
     }
 
+    // insert tcb before iter, since iter is the first task in the queue with a wake_tick greater than tcb's wake_tick
     tcb->timeout_next = iter;
-    tcb->timeout_prev = iter->timeout_prev;
+    tcb->timeout_prev = iter->timeout_prev; 
 
     if (iter->timeout_prev != NULL) {
         iter->timeout_prev->timeout_next = tcb;

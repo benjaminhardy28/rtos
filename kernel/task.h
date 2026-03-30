@@ -7,7 +7,6 @@
 #include "../include/os/task.h"
 #include <stddef.h>
 
-typedef void (*os_task_fn_t)(void *);
 struct os_task_queue_t;
 typedef struct os_task_queue_t os_task_queue_t;
 
@@ -35,6 +34,7 @@ typedef struct os_tcb_t {
 extern os_tcb_t *g_current;
 extern os_tcb_t *g_next;
 
-int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
+OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
+OS_KERNEL_TEXT int os_kernel_task_create(const os_task_create_args_t *args);
 void os_start(void); // start the scheduler, picks first task to run
 void os_kernel_yield(void); // privileged implementation behind os_yield()

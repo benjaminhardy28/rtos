@@ -2,6 +2,9 @@
 #include "scheduler.h"
 #include "../include/os/syscall.h"
 
+#define OS_MAX_DYNAMIC_TASKS 8u
+#define OS_DYNAMIC_TASK_STACK_WORDS 256u
+
 extern void os_port_pendsv_trigger(void);
 
 OS_KERNEL_BSS uint32_t volatile g_first_switch;
@@ -10,12 +13,45 @@ OS_KERNEL_BSS os_tcb_t *g_current = NULL;
 OS_KERNEL_BSS os_tcb_t *g_next = NULL;
 
 OS_KERNEL_BSS static os_tcb_t *g_ready_head;
+OS_KERNEL_BSS static os_tcb_t g_task_pool[OS_MAX_DYNAMIC_TASKS];
+OS_KERNEL_BSS static uint8_t g_task_pool_in_use[OS_MAX_DYNAMIC_TASKS];
+OS_USER_STACK static uint32_t g_task_stack_pool[OS_MAX_DYNAMIC_TASKS][OS_DYNAMIC_TASK_STACK_WORDS];
 
 OS_KERNEL_TEXT static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
   for (;;) {}
 }
 
-OS_KERNEL_TEXT int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
+OS_KERNEL_TEXT static int os_task_allocate_slot(os_tcb_t **tcb_out, uint32_t **stack_out) {
+  uint32_t i;
+
+  if (tcb_out == NULL || stack_out == NULL) {
+    return -1;
+  }
+
+  for (i = 0; i < OS_MAX_DYNAMIC_TASKS; i++) {
+    if (g_task_pool_in_use[i] == 0u) {
+      g_task_pool_in_use[i] = 1u;
+      *tcb_out = &g_task_pool[i];
+      *stack_out = g_task_stack_pool[i];
+      return 0;
+    }
+  }
+
+  return -1;
+}
+
+OS_USER_TEXT int os_task_create(os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t stack_words) {
+  os_task_create_args_t syscall_args = {
+    .priority = priority,
+    .entry = entry,
+    .arg = arg,
+    .stack_words = stack_words,
+  };
+
+  return (int)os_port_svc_call1(OS_SYSCALL_TASK_CREATE, (uint32_t)(uintptr_t)&syscall_args);
+}
+
+OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
   uint32_t *sp = stack_mem + stack_words;
 
   sp = (uint32_t *)((uintptr_t)sp & ~((uintptr_t)0x7)); // align to 8 bytes
@@ -54,6 +90,47 @@ OS_KERNEL_TEXT int os_task_create(os_tcb_t *tcb, os_task_priority_t priority, os
   tcb->prev = NULL;
   tcb->timeout_next = NULL;
   tcb->timeout_prev = NULL;
+  return 0;
+}
+
+OS_KERNEL_TEXT int os_kernel_task_create(const os_task_create_args_t *args) {
+  os_tcb_t *tcb;
+  uint32_t *stack_mem;
+  uint32_t primask;
+  int ret;
+
+  if (args == NULL || args->entry == NULL) {
+    return -1;
+  }
+
+  if ((uint32_t)args->priority > (uint32_t)OS_TASK_IDLE) {
+    return -1;
+  }
+
+  if (args->stack_words == 0u || args->stack_words > OS_DYNAMIC_TASK_STACK_WORDS) {
+    return -1;
+  }
+
+  primask = os_port_irq_save();
+  ret = os_task_allocate_slot(&tcb, &stack_mem);
+  os_port_irq_restore(primask);
+  if (ret != 0) {
+    return -1;
+  }
+
+  ret = os_task_create_internal(tcb, args->priority, args->entry, args->arg, stack_mem, args->stack_words);
+  if (ret != 0) {
+    return ret;
+  }
+
+  primask = os_port_irq_save();
+  os_ready_queue_add(tcb);
+  os_schedule();
+  if (g_current != NULL && g_next != g_current) {
+    os_port_pendsv_trigger();
+  }
+  os_port_irq_restore(primask);
+
   return 0;
 }
 

@@ -11,16 +11,6 @@ OS_USER_BSS volatile uint32_t g_bss;
 
 OS_USER_BSS volatile uint32_t g_reached_main;
 
-OS_KERNEL_BSS static os_tcb_t tcb0;
-OS_KERNEL_BSS static os_tcb_t tcb1;
-
-OS_USER_STACK static uint32_t stack0[256];
-OS_USER_STACK static uint32_t stack1[256];
-
-// idle task for when no other tasks are ready to run (just loops forever)
-OS_KERNEL_BSS static os_tcb_t idle_tcb;
-OS_USER_STACK static uint32_t idle_stack[128];
-
 OS_USER_TEXT static void os_idle_task(void *arg) {
     (void)arg;
     for (;;) {
@@ -62,15 +52,9 @@ OS_USER_TEXT int main(void)
 {
   g_reached_main = 0xA5A5A5A5;
   
-  // initialies idle task (priority 3, lowest priority)
-  os_task_create(&idle_tcb, OS_TASK_IDLE, os_idle_task, NULL, idle_stack, sizeof(idle_stack) / sizeof(idle_stack[0]));
-  os_ready_queue_add(&idle_tcb);
-
-  // int os_task_create(os_tcb_t *tcb, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
-  os_task_create(&tcb0, 1, task0, (void*)0, stack0, sizeof(stack0) / sizeof(stack0[0]));
-  os_task_create(&tcb1, 1, task1, (void*)1, stack1, sizeof(stack1) / sizeof(stack1[1]));
-  os_ready_queue_add(&tcb0);
-  os_ready_queue_add(&tcb1);
+  os_task_create(OS_TASK_IDLE, os_idle_task, NULL, 128);
+  os_task_create(OS_TASK_MEDIUM, task0, (void *)0, 256);
+  os_task_create(OS_TASK_MEDIUM, task1, (void *)1, 256);
 
   os_start(); // starts scheduler ONCE (enables tick + triggers first PendSV)
 
