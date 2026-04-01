@@ -1,9 +1,7 @@
 #include "task.h"
 #include "scheduler.h"
+#include "kalloc.h"
 #include "../include/os/syscall.h"
-
-#define OS_MAX_DYNAMIC_TASKS 8u
-#define OS_DYNAMIC_TASK_STACK_WORDS 256u
 
 extern void os_port_pendsv_trigger(void);
 
@@ -12,32 +10,14 @@ OS_KERNEL_BSS uint32_t volatile g_first_switch;
 OS_KERNEL_BSS os_tcb_t *g_current = NULL;
 OS_KERNEL_BSS os_tcb_t *g_next = NULL;
 
-OS_KERNEL_BSS static os_tcb_t *g_ready_head;
-OS_KERNEL_BSS static os_tcb_t g_task_pool[OS_MAX_DYNAMIC_TASKS];
-OS_KERNEL_BSS static uint8_t g_task_pool_in_use[OS_MAX_DYNAMIC_TASKS];
-OS_USER_STACK static uint32_t g_task_stack_pool[OS_MAX_DYNAMIC_TASKS][OS_DYNAMIC_TASK_STACK_WORDS];
+// temp
+
+OS_USER_BSS volatile uint32_t g_debug_step;
+OS_USER_BSS volatile uint32_t g_debug_value0;
+OS_USER_BSS volatile uint32_t g_debug_value1;
 
 OS_KERNEL_TEXT static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
   for (;;) {}
-}
-
-OS_KERNEL_TEXT static int os_task_allocate_slot(os_tcb_t **tcb_out, uint32_t **stack_out) {
-  uint32_t i;
-
-  if (tcb_out == NULL || stack_out == NULL) {
-    return -1;
-  }
-
-  for (i = 0; i < OS_MAX_DYNAMIC_TASKS; i++) {
-    if (g_task_pool_in_use[i] == 0u) {
-      g_task_pool_in_use[i] = 1u;
-      *tcb_out = &g_task_pool[i];
-      *stack_out = g_task_stack_pool[i];
-      return 0;
-    }
-  }
-
-  return -1;
 }
 
 OS_USER_TEXT int os_task_create(os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t stack_words) {
@@ -107,19 +87,29 @@ OS_KERNEL_TEXT int os_kernel_task_create(const os_task_create_args_t *args) {
     return -1;
   }
 
-  if (args->stack_words == 0u || args->stack_words > OS_DYNAMIC_TASK_STACK_WORDS) {
+  g_debug_step = 1;
+  tcb = (os_tcb_t *)os_kobj_alloc((uint32_t)sizeof(os_tcb_t));
+  if (tcb == NULL) {
     return -1;
   }
 
-  primask = os_port_irq_save();
-  ret = os_task_allocate_slot(&tcb, &stack_mem);
-  os_port_irq_restore(primask);
-  if (ret != 0) {
+  g_debug_step = 2;
+  g_debug_value0 = (uint32_t)(uintptr_t)tcb;
+
+  stack_mem = os_kstack_alloc(args->stack_words);
+  if (stack_mem == NULL) {
+    os_kobj_free(tcb);
     return -1;
   }
+
+  g_debug_step = 3;
+  g_debug_value1 = (uint32_t)(uintptr_t)stack_mem;
+
 
   ret = os_task_create_internal(tcb, args->priority, args->entry, args->arg, stack_mem, args->stack_words);
   if (ret != 0) {
+    os_kstack_free(stack_mem);
+    os_kobj_free(tcb);
     return ret;
   }
 

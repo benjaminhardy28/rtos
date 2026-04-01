@@ -1,6 +1,7 @@
 #include "tick.h"
 #include "task.h"
 #include "scheduler.h"
+#include "kalloc.h"
 #include "../arch/arm_cm/port.h"
 #include "../bsp/qemu_mps2/systick.h"
 #include "../include/os/section.h"
@@ -52,7 +53,12 @@ OS_USER_TEXT int main(void)
 {
   g_reached_main = 0xA5A5A5A5;
   
+  os_kalloc_init(); // Allocate memory regions for kernel objects and task stacks
+
+  // Create IDLE task so there is always a task for the scheduler to choose
   os_task_create(OS_TASK_IDLE, os_idle_task, NULL, 128);
+
+  // Create tasks for application
   os_task_create(OS_TASK_MEDIUM, task0, (void *)0, 256);
   os_task_create(OS_TASK_MEDIUM, task1, (void *)1, 256);
 
