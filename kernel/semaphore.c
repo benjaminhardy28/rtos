@@ -3,13 +3,14 @@
 #include "../arch/arm_cm/port.h"
 #include "../include/os/syscall.h"
 
-OS_KERNEL_TEXT int os_sem_init(os_sem_t *sem, int32_t initial_count) {
+OS_USER_TEXT int os_sem_init(os_sem_t *sem, int32_t initial_count) {
     if (!sem || initial_count < 0) {
         return -1;
     }
 
     sem->count = initial_count;
-    os_task_queue_init(&sem->waiters);
+    sem->waiters.head = NULL;
+    sem->waiters.tail = NULL;
     return 0;
 }
 

@@ -1,13 +1,15 @@
 #include "mutex.h"
+#include <stdint.h>
 #include "../include/os/syscall.h"
 
-OS_KERNEL_TEXT int os_mutex_init(os_mutex_t *mutex) {
+OS_USER_TEXT int os_mutex_init(os_mutex_t *mutex) {
     if (!mutex) {
         return -1;
     }
 
     mutex->owner = NULL;
-    os_task_queue_init(&mutex->waiters);
+    mutex->waiters.head = NULL;
+    mutex->waiters.tail = NULL;
     return 0;
 }
 

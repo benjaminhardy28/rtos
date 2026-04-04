@@ -5,6 +5,7 @@
 #include "../../kernel/mutex.h"
 #include "../../kernel/semaphore.h"
 #include "../../kernel/tick.h"
+#include "../../kernel/queue.h"
 
 extern uint32_t __user_flash_region_start__;
 extern uint32_t __user_flash_region_end__;
@@ -110,7 +111,7 @@ OS_KERNEL_TEXT static void os_port_svc_dispatch(os_exc_frame_t *frame) { // impl
     case OS_SYSCALL_TASK_CREATE:
       ret = (uint32_t)os_kernel_task_create((const os_task_create_args_t *)(uintptr_t)frame->r1);
       break;
-
+      
     default:
       break;
   }
