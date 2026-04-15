@@ -15,7 +15,7 @@ extern uint32_t __user_bss_end__;
 extern uint32_t __kernel_bss_start__;
 extern uint32_t __kernel_bss_end__;
 
-int main(void);
+void os_boot_main(void);
 
 void Reset_Handler(void);
 void Default_Handler(void);
@@ -71,8 +71,7 @@ void Reset_Handler(void)
   os_zero_words(&__user_bss_start__, &__user_bss_end__);
   os_zero_words(&__kernel_bss_start__, &__kernel_bss_end__);
 
-  // call main script
-  (void)main();
+  os_boot_main();
 
   while (1) {}
 }
