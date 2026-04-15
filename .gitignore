@@ -55,3 +55,8 @@ __pycache__/
 
 # --- Extra materials
 notes.md
+
+# not ready, need hardware lol
+bench/
+include/os/bench.h
+scripts/analyze_bench.py
