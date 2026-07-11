@@ -75,9 +75,16 @@ With the current layout, the linker script is also part of the privilege archite
 - kernel RAM
 
 ### `scripts/`
-Helper scripts for running or debugging the firmware in QEMU.
+Helper scripts for running or debugging the firmware in QEMU or Renode.
 
 These are development conveniences rather than part of the RTOS itself.
+
+`scripts/renode/` contains the Renode platform description (`mps2-an385.repl`)
+and `.resc` launch scripts (`run.resc`, `debug.resc`) for the same Cortex-M3
+target QEMU uses. Renode is the tool to reach for when doing latency work
+with `bench/`: QEMU's `mps2-an385` model does not implement the DWT unit at
+all (`DWT_CYCCNT` always reads back 0), while Renode models it, so
+`os_bench_clock_now()` returns real, deterministic cycle counts there.
 
 ## How The Pieces Fit Together
 
@@ -140,3 +147,14 @@ Run under QEMU with:
 ```sh
 make qemu
 ```
+
+Run under Renode (needed for `bench/` cycle counts, since QEMU stubs out
+DWT_CYCCNT) with:
+
+```sh
+make renode
+```
+
+Debug under Renode with `make renode-debug`, then connect with
+`arm-none-eabi-gdb -ex "target remote :3333" build/rtos.elf` (port 3333,
+not 1234 -- Renode's own console monitor already uses 1234).

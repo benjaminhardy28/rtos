@@ -5,7 +5,7 @@
 #include "../../kernel/mutex.h"
 #include "../../kernel/semaphore.h"
 #include "../../kernel/tick.h"
-#include "../../kernel/queue.h"
+#include "../../include/os/queue.h"
 
 extern uint32_t __user_flash_region_start__;
 extern uint32_t __user_flash_region_end__;
