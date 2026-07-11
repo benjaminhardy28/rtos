@@ -139,7 +139,7 @@ OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to
   }
 
   __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // load PSP with the first task's stack pointer so that when we switch to thread mode, it will use the task's stack
-  systick_enable(); // enable SysTick interrupt
+  //systick_enable(); // enable SysTick interrupt
   __asm volatile(
     "movs r0, #2      \n"   // CONTROL = 2 -> use PSP, privileged since we are currently executing os_start which is a kernel function, but we will switch to unprivileged when we perform the first context switch in PendSV handler
     "msr CONTROL, r0  \n" 
