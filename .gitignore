@@ -16,11 +16,12 @@ obj/
 *.dump
 
 # ---- CMake / Ninja (if you use them later) ----
+# NOTE: no blanket "Makefile" rule here -- the hand-written root Makefile
+# is the actual build system and must stay tracked.
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 compile_commands.json
-Makefile
 *.ninja
 .ninja_*
 cmake-build-*/
