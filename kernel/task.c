@@ -16,7 +16,9 @@ OS_USER_BSS volatile uint32_t g_debug_step;
 OS_USER_BSS volatile uint32_t g_debug_value0;
 OS_USER_BSS volatile uint32_t g_debug_value1;
 
-OS_KERNEL_TEXT static void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return)
+extern void os_task_start_trampoline(void); // arch/arm_cm/port.c
+
+OS_USER_TEXT void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return); user-accessible flash since a task running unprivileged needs fetch permission for it; not static so arch/arm_cm/port.c's trampoline can set it as lr
   for (;;) {}
 }
 
@@ -41,12 +43,12 @@ OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t pri
   // 1. Hardware-saved registers (Stacked automatically on exception entry/exit)
   // These are popped by the CPU when the scheduler triggers an exception return
   *(--sp) = 0x01000000u;               // xPSR: Default value with Thumb (T) bit set
-  *(--sp) = (uint32_t)(uintptr_t)entry; // PC:   The task's start address
+  *(--sp) = (uint32_t)(uintptr_t)os_task_start_trampoline; // PC: every task starts here, not at `entry` directly
   *(--sp) = (uint32_t)(uintptr_t)os_task_exit_trap; // LR: Return address if task function exits
   *(--sp) = 0u;                         // R12:
   *(--sp) = 0u;                         // R3:
   *(--sp) = 0u;                         // R2:
-  *(--sp) = 0u;                         // R1:
+  *(--sp) = (uint32_t)(uintptr_t)entry; // R1:   real entry point, used by os_task_start_trampoline
   *(--sp) = (uint32_t)(uintptr_t)arg;   // R0:   Task function argument (per AAPCS)
 
   // 2. Manually-saved registers (Software-managed context)

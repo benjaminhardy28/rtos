@@ -12,15 +12,15 @@ OS_USER_BSS volatile uint32_t g_bss;
 
 OS_USER_BSS volatile uint32_t g_reached_main;
 
-static os_spsc_queue_t g_queue;
-static uint32_t g_queue_storage[8];
+OS_USER_BSS static os_spsc_queue_t g_queue;
+OS_USER_BSS static uint32_t g_queue_storage[8];
 
 /* Debug variables you can watch in GDB/QEMU */
-volatile uint32_t g_task1_sent = 0;
-volatile uint32_t g_task2_recv = 0;
-volatile uint32_t g_last_sent = 0;
-volatile uint32_t g_last_recv = 0;
-volatile uint32_t g_error_count = 0;
+OS_USER_BSS volatile uint32_t g_task1_sent;
+OS_USER_BSS volatile uint32_t g_task2_recv;
+OS_USER_BSS volatile uint32_t g_last_sent;
+OS_USER_BSS volatile uint32_t g_last_recv;
+OS_USER_BSS volatile uint32_t g_error_count;
 
 OS_USER_TEXT static void task0(void *arg) {
     uint32_t value = 1;

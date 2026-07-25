@@ -1,0 +1,10 @@
+using sysbus
+
+mach create "rtos"
+machine LoadPlatformDescription @scripts/renode/stm32f103.repl
+sysbus LoadELF @build/rtos.elf
+# Port 1234 is Renode's own console/telnet monitor port in --disable-gui
+# mode, so the GDB server uses 3333 instead to avoid colliding with it.
+machine StartGdbServer 3333
+# Machine stays halted here (no `start`) so GDB can attach and control
+# execution from reset, mirroring `qemu -S -s`.
