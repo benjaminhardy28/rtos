@@ -20,7 +20,7 @@ OS_KERNEL_TEXT void os_port_irq_restore(uint32_t primask); // restore PRIMASK to
 // );
 
 
-static inline uint32_t os_port_svc_call0(uint32_t syscall_id) {
+OS_USER_TEXT static inline uint32_t os_port_svc_call0(uint32_t syscall_id) {
   register uint32_t r0 __asm("r0") = syscall_id;
 
   __asm volatile(
@@ -32,7 +32,7 @@ static inline uint32_t os_port_svc_call0(uint32_t syscall_id) {
   return r0;
 }
 
-static inline uint32_t os_port_svc_call1(uint32_t syscall_id, uint32_t arg1) {
+OS_USER_TEXT OS_USER_TEXT static inline uint32_t os_port_svc_call1(uint32_t syscall_id, uint32_t arg1) {
   register uint32_t r0 __asm("r0") = syscall_id;
   register uint32_t r1 __asm("r1") = arg1;
 
@@ -45,7 +45,7 @@ static inline uint32_t os_port_svc_call1(uint32_t syscall_id, uint32_t arg1) {
   return r0;
 }
 
-static inline uint32_t os_port_svc_call2(uint32_t syscall_id, uint32_t arg1, uint32_t arg2) {
+OS_USER_TEXT static inline uint32_t os_port_svc_call2(uint32_t syscall_id, uint32_t arg1, uint32_t arg2) {
   register uint32_t r0 __asm("r0") = syscall_id;
   register uint32_t r1 __asm("r1") = arg1;
   register uint32_t r2 __asm("r2") = arg2;

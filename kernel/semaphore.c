@@ -33,7 +33,7 @@ OS_KERNEL_TEXT int os_kernel_sem_take(os_sem_t *sem) {
         return 0;
     }
 
-    os_task_block_locked(&sem->waiters, OS_WAIT_FOREVER); // block current task on semaphore wait queue until it becomes available. Caller is already inside critical section, so we can call the _locked version of block
+    os_task_block_locked(&sem->waiters, OS_WAIT_FOREVER, false); // block current task on semaphore wait queue until it becomes available. Caller is already inside critical section, so we can call the _locked version of block
     // Any tasks that wakeup will automatically be given ownership, so the semaphore count doesn't need to be modified here since it's effectively being transferred to the waiting task that gets unblocked when the semaphore is given
     os_port_irq_restore(key); // restore interrupts after blocking (we don't want to restore before blocking since that would allow an interrupt to occur
 

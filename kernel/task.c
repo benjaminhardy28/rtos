@@ -63,9 +63,12 @@ OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t pri
   *(--sp) = 0u; // R4:  
 
   tcb->sp = sp;
+  tcb->base_priority = priority;
   tcb->priority = priority;
   tcb->state = OS_TASK_READY;
   tcb->wait_queue = NULL;
+  tcb->owned_mutexes = NULL;
+  tcb->blocked_on = NULL;
   tcb->wake_tick = 0;
   tcb->wait_result = 0;
   tcb->next = NULL;
@@ -141,7 +144,7 @@ OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to
   }
 
   __asm volatile("msr psp, %0" :: "r"(g_current->sp) : "memory"); // load PSP with the first task's stack pointer so that when we switch to thread mode, it will use the task's stack
-  //systick_enable(); // enable SysTick interrupt
+  systick_enable(); // enable SysTick interrupt
   __asm volatile(
     "movs r0, #2      \n"   // CONTROL = 2 -> use PSP, privileged since we are currently executing os_start which is a kernel function, but we will switch to unprivileged when we perform the first context switch in PendSV handler
     "msr CONTROL, r0  \n" 

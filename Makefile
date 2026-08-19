@@ -1,6 +1,6 @@
 # -------- Toolchain --------
 CC      := arm-none-eabi-gcc
-GDB     := aç
+GDB     := arm-none-eabi-gdb
 READELF := arm-none-eabi-readelf
 NM      := arm-none-eabi-nm
 OBJDUMP := arm-none-eabi-objdump

@@ -2,6 +2,7 @@
 
 #include "task.h"
 #include <stddef.h>
+#include "stdbool.h"
 
 typedef struct os_task_queue_t {
     os_tcb_t *head;
@@ -22,10 +23,12 @@ os_tcb_t *os_next_tcb(void); // get next scheduled task's TCB
 // Ready queue
 void os_ready_queue_add(os_tcb_t *tcb); // add TCB to queue
 void os_ready_queue_remove(os_tcb_t *tcb); // remove TCB from ready queue
+void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_tcb_t *tcb); // insert TCB into queue sorted by priority (lower number = higher priority)
 void os_schedule(void); // pick next task to run and set g_next
+void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority);
 
 // wait queue
-void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks); // caller must have interrupts disabled
+void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks, bool priority_ordered); // caller must have interrupts disabled
 os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue); // caller must have interrupts disabled
 void os_process_timeouts(void);
 

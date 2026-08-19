@@ -124,6 +124,42 @@ OS_KERNEL_TEXT void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
     tcb->prev = NULL;
 }
 
+OS_KERNEL_TEXT void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_tcb_t *tcb) {
+    if (!queue || !tcb) return;
+
+    tcb->next = NULL;
+    tcb->prev = NULL;
+
+    if (queue->head == NULL) {
+        queue->head = tcb;
+        queue->tail = tcb;
+        return;
+    }
+
+    os_tcb_t *iter = queue->head;
+    while (iter != NULL && iter->priority <= tcb->priority) {
+        iter = iter->next;
+    }
+
+    if (iter == NULL) {
+        // Insert at the end
+        tcb->prev = queue->tail;
+        queue->tail->next = tcb;
+        queue->tail = tcb;
+    } else {
+        // Insert before iter
+        tcb->next = iter;
+        tcb->prev = iter->prev;
+
+        if (iter->prev != NULL) {
+            iter->prev->next = tcb;
+        } else {
+            queue->head = tcb; // inserting at the head
+        }
+        iter->prev = tcb;
+    }
+}
+
 // Ready queue functions just call the generic queue functions with the appropriate priority queue
 
 OS_KERNEL_TEXT void os_ready_queue_rotate(os_tcb_t *tcb){
@@ -163,9 +199,28 @@ OS_KERNEL_TEXT void os_schedule(void){
     g_next = NULL; // no ready tasks found
 }
 
+OS_KERNEL_TEXT void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority) {
+    if (!tcb || new_priority > OS_TASK_IDLE) return;
+
+    // Update the tasks prority 
+    if (tcb->state == OS_TASK_READY || tcb->state == OS_TASK_RUNNING) {
+        os_ready_queue_remove(tcb);
+        tcb->priority = new_priority;
+        os_ready_queue_add(tcb);
+    } else {
+        tcb->priority = new_priority;
+    }
+
+    // Re-insert the task into any priority based wait queues it may be in, this will only ever be called for a mutex 
+    if(tcb->state == OS_TASK_BLOCKED && tcb->wait_queue != NULL) {
+        os_task_queue_remove(tcb->wait_queue, tcb);
+        os_task_queue_insert_by_priority(tcb->wait_queue, tcb);
+    }
+}
+
 // wait queue functions
 
-OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks)
+OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks, bool priority_ordered)
 {
     os_tcb_t *current;
 
@@ -181,8 +236,15 @@ OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t t
     current->wait_queue = wait_queue; // record which wait queue owns the blocked task
     current->wake_tick = OS_WAIT_FOREVER;
     current->wait_result = 0;
-    os_task_queue_add(wait_queue, current); // add current task to the specified wait queue
 
+    // Add task to the specified wait queue, either in priority order or FIFO order based on the priority_ordered flag
+    if(priority_ordered) {
+        os_task_queue_insert_by_priority(wait_queue, current); // insert into wait queue sorted by priority
+    } else {
+        os_task_queue_add(wait_queue, current); // add current task to the specified wait queue
+    }
+
+    // If a timeout is specified, set the wake_tick and insert into the timeout queue
     if (timeout_ticks != OS_WAIT_FOREVER) {
         current->wake_tick = os_tick_get() + timeout_ticks;
         os_timeout_queue_insert_sorted(current);

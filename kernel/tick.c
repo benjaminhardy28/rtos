@@ -30,7 +30,7 @@ OS_KERNEL_TEXT void os_kernel_delay_ticks(uint32_t ticks)
   }
 
   key = os_port_irq_save();
-  os_task_block_locked(&g_sleep_queue, ticks);
+  os_task_block_locked(&g_sleep_queue, ticks, false);
   os_port_irq_restore(key);
 }
 
