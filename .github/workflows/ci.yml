@@ -15,9 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # stm32f103 is the main board; mps2-an385 (QEMU-compatible) is
-        # kept building too since it's still a supported target.
-        board: [stm32f103, mps2-an385]
+        board: [stm32f103]
     steps:
       - uses: actions/checkout@v4
 

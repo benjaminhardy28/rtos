@@ -1,8 +1,6 @@
-// SysTick is part of the ARMv7-M core (System Control Space), not a
-// vendor peripheral, so this is byte-for-byte the same as
-// bsp/qemu_mps2/systick.c -- it's here as its own BSP purely so the
-// STM32F103 target has its own place to grow chip-specific peripheral
-// code (CAN, GPIO, USART, ...) without being tied to the mps2 board.
+// SysTick is part of the ARMv7-M core (System Control Space), not a vendor peripheral, so
+// this has no chip-specific logic yet -- it's its own BSP purely so STM32F103 has its own
+// place to grow chip-specific peripheral code (CAN, GPIO, USART, ...).
 #include "systick.h"
 
 #define SYST_CSR (*(volatile uint32_t *)0xE000E010u) // Control and Status Register: Enables the counter, interrupt and selects the clock source

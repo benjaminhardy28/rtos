@@ -64,7 +64,7 @@ static void os_zero_words(uint32_t *dst, uint32_t *end)
 
 // Initialize memory
 void Reset_Handler(void)
-{   // qemu execution pauses here when using -S since this is start of reset handler
+{   // execution pauses here when a debugger halts at reset (e.g. Renode's `-S`-style start)
   os_copy_words(&__user_data_start__, &__user_data_load__, &__user_data_end__);
   os_copy_words(&__kernel_data_start__, &__kernel_data_load__, &__kernel_data_end__);
 

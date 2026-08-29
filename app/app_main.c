@@ -15,7 +15,7 @@ OS_USER_BSS volatile uint32_t g_reached_main;
 OS_USER_BSS static os_spsc_queue_t g_queue;
 OS_USER_BSS static uint32_t g_queue_storage[8];
 
-/* Debug variables you can watch in GDB/QEMU */
+/* Debug variables you can watch in GDB */
 OS_USER_BSS volatile uint32_t g_task1_sent;
 OS_USER_BSS volatile uint32_t g_task2_recv;
 OS_USER_BSS volatile uint32_t g_last_sent;

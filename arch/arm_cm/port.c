@@ -42,7 +42,14 @@ extern volatile uint32_t g_first_switch;
 #define MPU_AP_RO_ALL        (6u << 24)
 #define MPU_ATTR_FLASH       (1u << 17)
 #define MPU_ATTR_SRAM        ((1u << 17) | (1u << 16))
+#define MPU_ATTR_DEVICE      (1u << 16) // TEX=000, C=0, B=1 -> Device memory, for MMIO peripheral regions
 #define MPU_REGION_ENABLE    (1u << 0)
+
+// DWT_CTRL..DWT_PCSR (0xE0001000-0xE000101F): smallest MPU region (32B, size-aligned)
+// covering DWT_CYCCNT so unprivileged app code (benchmark/bench_clock.c) can read the
+// cycle counter directly without SVC overhead. Read-only: app code must not reconfigure DWT_CTRL.
+#define DWT_PERIPH_REGION_BASE 0xE0001000u
+#define DWT_PERIPH_REGION_SIZE 32u
 
 typedef struct {
   uint32_t r0;
@@ -150,6 +157,7 @@ OS_KERNEL_TEXT void os_port_mpu_init(void) {
   os_port_mpu_region_configure(1u, (uintptr_t)&__kernel_flash_region_start__, kernel_flash_size, MPU_AP_PRIV_RO | MPU_ATTR_FLASH);
   os_port_mpu_region_configure(2u, (uintptr_t)&__user_ram_region_start__, user_ram_size, MPU_AP_FULL_ACCESS | MPU_ATTR_SRAM | MPU_RASR_XN);
   os_port_mpu_region_configure(3u, (uintptr_t)&__kernel_ram_region_start__, kernel_ram_size, MPU_AP_PRIV_RW | MPU_ATTR_SRAM | MPU_RASR_XN);
+  os_port_mpu_region_configure(4u, DWT_PERIPH_REGION_BASE, DWT_PERIPH_REGION_SIZE, MPU_AP_RO_ALL | MPU_ATTR_DEVICE | MPU_RASR_XN);
 
   MPU_CTRL = MPU_CTRL_ENABLE | MPU_CTRL_PRIVDEFENA;
 
@@ -167,30 +175,11 @@ OS_KERNEL_TEXT __attribute__((naked)) void SVC_Handler(void) {
   );
 }
 
-// Entry trampoline for every task: r0 = arg, r1 = real entry point (set up
-// by os_task_create_internal in place of using PC directly). Drops
-// privilege via a direct CONTROL write -- no SVC/exception involved --
-// then tail-jumps to the real entry with lr pointing at os_task_exit_trap,
-// exactly as if entry() had been called directly.
-//
-// Only the very first task switched into (see PendSV_Handler) is actually
-// still privileged when it reaches here; the direct `msr control` drops
-// it. Every later task is already unprivileged by the time its own
-// trampoline runs (switched in that way directly by PendSV), so the same
-// write is a harmless no-op for them (unprivileged code can't raise its
-// own privilege, but re-asserting an already-clear bit changes nothing).
-//
-// This deliberately avoids doing the drop via SVC: an SVC's exception
-// *return* is itself a privilege-changing return, which hits the exact
-// same Renode/tlib bug PendSV_Handler works around, just relocated to a
-// different exception. A privileged Thread-mode CONTROL write with no
-// exception boundary at all sidesteps it entirely.
-OS_USER_TEXT __attribute__((naked)) void os_task_start_trampoline(void) { // must be user-accessible flash: it executes the actual CONTROL write that drops privilege, and Thread-mode code needs fetch permission for its own remaining instructions immediately after that write takes effect (unlike Handler mode, which ignores CONTROL.nPRIV for its own execution)
+// Entry trampoline for every task: r0 = arg, r1 = real entry point (set by
+// os_task_create_internal). Tail-jumps to entry() with lr = os_task_exit_trap, as if
+// entry() had been called directly; never touches CONTROL since PendSV_Handler already drops privilege before landing here.
+OS_USER_TEXT __attribute__((naked)) void os_task_start_trampoline(void) { // must be user-accessible flash: it runs unprivileged from its first instruction (PendSV_Handler always drops privilege before landing here)
   __asm volatile(
-    "mrs r2, control            \n"
-    "orr r2, r2, #1             \n"
-    "msr control, r2            \n"
-    "isb                        \n"
     "ldr r2, =os_task_exit_trap \n"
     "mov lr, r2                 \n"
     "bx r1                      \n"
@@ -204,7 +193,6 @@ OS_KERNEL_TEXT __attribute__((naked)) void PendSV_Handler(void) {
 
     "ldr r2, =g_first_switch\n" // r2 = &g_first_switch
     "ldr r3, [r2]           \n" // r3 = g_first_switch
-    "push {r3}              \n" // preserve first_switch flag across the bl calls below (they clobber r0-r3, r12)
     "cbnz r3, 1f            \n" // if first_switch != 0, skip save because we haven't started the scheduler yet and don't have a current task to save context for
 
     "stmdb r0!, {r4-r11}    \n" // push r4-r11, r0 = saved_sp
@@ -224,27 +212,7 @@ OS_KERNEL_TEXT __attribute__((naked)) void PendSV_Handler(void) {
     "ldmia r0!, {r4-r11}    \n" // pop r4-r11, r0 = PSP to hw frame
     "msr psp, r0            \n" // PSP = next PSP
 
-    "pop {r3}               \n" // r3 = first_switch flag (preserved above)
-    "cbnz r3, 3f            \n"
-    "movs r1, #3            \n" // normal switch: thread mode, PSP, unprivileged
-    "b 4f                   \n"
-    "3:                     \n"
-    // The very first switch stays PRIVILEGED here (nPRIV bit clear) as a
-    // partial workaround for a confirmed Renode/tlib emulation bug: the
-    // very first CONTROL.nPRIV downgrade to unprivileged in a boot
-    // session, executed at full (non-single-stepped) simulation speed,
-    // causes a spurious MemManage (IACCVIOL) fault -- reproduced via
-    // exception return (here) AND via a plain, non-exception `msr
-    // CONTROL` instruction (see os_task_start_trampoline), and confirmed
-    // to never happen once single-stepped, or for any *later* transition.
-    // No software-side avoidance was found despite extensive testing
-    // (relocating the drop to SVC, plain instructions, adding delays/
-    // barriers, and several Renode CPU cache/chaining/TLB settings all
-    // still hit it). Staying privileged here just moves the eventual
-    // fault to a single, well-understood spot in
-    // os_task_start_trampoline instead of firing here unpredictably.
-    "movs r1, #2            \n" // first switch: thread mode, PSP, still privileged
-    "4:                     \n"
+    "movs r1, #3            \n" // thread mode, PSP, unprivileged -- every switch, including the first, drops privilege here directly
     "msr CONTROL, r1        \n"
     "isb                    \n"
 

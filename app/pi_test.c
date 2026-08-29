@@ -6,34 +6,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/*
- * Classic priority-inversion scenario, built to run without tick support
- * (systick_enable() is currently disabled in kernel/task.c, so this can't
- * rely on os_delay_ticks). Sequencing instead relies on the fact that
- * os_task_create() preempts immediately when the new task outranks the
- * caller, and that priority inheritance boosts the mutex owner back above
- * the medium-priority hog before it can preempt.
- *
- * Trace, if priority inheritance is working:
- *   1. L (LOW) is the only real task at boot, so it runs first and locks
- *      the mutex uncontended.
- *   2. L creates H (HIGH). This immediately preempts L (unboosted, still
- *      LOW) and switches to H.
- *   3. H tries to lock the mutex, finds it owned by L, boosts L to HIGH,
- *      and blocks.
- *   4. L (now HIGH) resumes right where os_task_create(H, ...) returned.
- *   5. L creates M (MEDIUM). Because L is currently boosted to HIGH, this
- *      does NOT preempt L -- M just sits ready.
- *   6. L finishes its "critical section" and unlocks, restoring itself to
- *      LOW and handing the mutex straight to H.
- *   7. H acquires the mutex promptly and sets g_pi_high_acquired = 1.
- *
- * Without priority inheritance, step 5 would instead have M (MEDIUM,
- * outranks L's unboosted LOW) preempt L on creation. M never blocks or
- * yields, so it would spin forever, L would never get back to unlock the
- * mutex, and H would stay blocked on it permanently --
- * g_pi_high_acquired would never become 1.
- */
+/* Priority-inversion scenario: L locks the mutex, H preempts and blocks on it boosting L to
+ * HIGH so M can't preempt; L unlocks, H acquires the mutex and sets g_pi_high_acquired = 1.
+ * Without PI, M would preempt L on creation and spin forever, so H never acquires it. */
 
 #define PI_BUSY_ITERS 50000u
 

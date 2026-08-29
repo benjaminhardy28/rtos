@@ -1,0 +1,243 @@
+ARM CORTEX-M3 FLASHCARDS
+========================
+Format: Q: / A:  (one card per block, blank line between cards)
+
+
+-- REGISTERS: CORE --
+
+Q: What are R0-R12 on the Cortex-M3?
+A: General-purpose registers. R0-R7 are "low registers" accessible by all Thumb instructions; R8-R12 are "high registers" with more limited instruction access.
+
+Q: What is R13?
+A: The Stack Pointer (SP). It is banked: there are two physical registers, MSP (Main Stack Pointer) and PSP (Process Stack Pointer), but only one is visible as R13 at a time.
+
+Q: What is R14?
+A: The Link Register (LR). Holds the return address for subroutine calls. During exception entry, LR is loaded with a special EXC_RETURN value instead of a normal return address.
+
+Q: What is R15?
+A: The Program Counter (PC). Bit 0 is always read as 0; writes to PC must have bit 0 set to 1 to indicate Thumb state (Cortex-M3 has no ARM state).
+
+Q: What is EXC_RETURN?
+A: A special value (0xFFFFFFE1/F9/FD etc.) loaded into LR on exception entry. Writing it back to PC on exception return tells the processor which stack/mode to return to instead of being a real code address.
+
+
+-- REGISTERS: SPECIAL / STATUS --
+
+Q: What is xPSR made up of?
+A: Three logical registers combined: APSR (Application PSR - N,Z,C,V,Q condition flags), IPSR (Interrupt PSR - current exception number), and EPSR (Execution PSR - Thumb state bit, IT block state).
+
+Q: What does IPSR contain?
+A: The exception number of the currently executing exception (0 = Thread mode/no exception).
+
+Q: What does APSR contain?
+A: N, Z, C, V condition code flags and Q (sticky saturation flag), same role as CPSR flags on classic ARM.
+
+Q: What is PRIMASK?
+A: A 1-bit special register. When set, it prevents all exceptions except NMI and HardFault from being taken (blocks configurable-priority interrupts).
+
+Q: What is FAULTMASK?
+A: A 1-bit special register. When set, it blocks all exceptions except NMI (even HardFault is blocked).
+
+Q: What is BASEPRI?
+A: A special register that masks all exceptions with priority number >= its value (i.e., priority equal or lower than the given level). Set to 0 disables the masking.
+
+Q: What is the CONTROL register?
+A: A 2-bit (in M3) special register: bit0 selects privileged (0) vs unprivileged (1) Thread mode execution; bit1 selects which stack pointer Thread mode uses, MSP (0) or PSP (1). Handler mode always uses MSP and is always privileged.
+
+Q: How do you access special registers like PRIMASK, CONTROL, MSP, PSP?
+A: Via the MRS (read) and MSR (write) instructions; they are not accessible with normal data-processing instructions.
+
+
+-- OPERATING MODES & STACKS --
+
+Q: What are the two processor modes on Cortex-M3?
+A: Thread mode (normal program execution, entered at reset) and Handler mode (running an exception/interrupt handler). Handler mode is always privileged.
+
+Q: What are the two privilege levels?
+A: Privileged and unprivileged (user). Handler mode is always privileged; Thread mode can be either, set via CONTROL bit0.
+
+Q: What is the difference between MSP and PSP?
+A: MSP (Main Stack Pointer) is used by Handler mode always, and by Thread mode by default. PSP (Process Stack Pointer) can optionally be used by Thread mode (e.g., per-task stacks in an RTOS), selected via CONTROL bit1.
+
+Q: In a typical RTOS, which stack pointer does each task use, and which does the kernel/interrupts use?
+A: Tasks run in Thread mode using PSP (each task has its own stack); exception/interrupt handlers run in Handler mode using MSP (a single shared system stack).
+
+Q: What happens to CONTROL bit1 (stack selection) when an exception is taken?
+A: It's forced to use MSP while in Handler mode; the Thread-mode selection is restored automatically on exception return via the EXC_RETURN value.
+
+
+-- EXCEPTION MODEL & NVIC --
+
+Q: What is the NVIC?
+A: Nested Vectored Interrupt Controller - tightly coupled to the CPU core, handles prioritization, nesting, and low-latency dispatch of exceptions/interrupts.
+
+Q: How many priority levels does the NVIC support?
+A: Implementation-defined, up to 8 bits (256 levels) of priority per exception; most silicon (e.g. STM32) implements only the upper 3-4 bits, giving 8-16 levels.
+
+Q: What is exception number 1?
+A: Reset.
+
+Q: What is exception number 2?
+A: NMI (Non-Maskable Interrupt) - fixed priority -2, highest priority, cannot be masked except by RESET.
+
+Q: What is exception number 3?
+A: HardFault - fixed priority -1, the fallback fault handler when a more specific fault can't be taken or is disabled.
+
+Q: What is exception number 4?
+A: MemManage fault - configurable priority, MPU violations and certain illegal memory accesses.
+
+Q: What is exception number 5?
+A: BusFault - configurable priority, memory access errors on the bus (e.g. faulted AHB transaction).
+
+Q: What is exception number 6?
+A: UsageFault - configurable priority, undefined instructions, invalid state, illegal unaligned access (if enabled), divide-by-zero (if enabled).
+
+Q: What is exception number 11?
+A: SVCall (SVC) - Supervisor Call, software-triggered exception used for OS system calls (e.g., requesting a context switch or kernel service).
+
+Q: What is exception number 14?
+A: PendSV - Pendable Service Call, a software-triggered, lowest-priority-by-convention exception used by RTOSes to perform context switches without impacting interrupt latency.
+
+Q: What is exception number 15?
+A: SysTick - the integrated 24-bit system timer exception, commonly used as the RTOS tick interrupt.
+
+Q: Why do RTOSes use PendSV for context switching instead of doing it directly in SVC or another ISR?
+A: PendSV is set to the lowest priority, so it automatically gets deferred until all other exceptions/ISRs finish, ensuring the context switch happens only when it's safe and doesn't add latency to higher-priority interrupts.
+
+Q: Exception numbers 16 and above represent what?
+A: External interrupts (IRQ0, IRQ1, ...), i.e. peripheral interrupts wired into the NVIC, vendor/device-specific.
+
+Q: What is "tail-chaining"?
+A: An NVIC optimization where, if a new exception is pending when the current one finishes, the processor skips the unstack/restack of registers and jumps directly to the next handler, saving cycles.
+
+Q: What is "late-arrival"?
+A: If a higher-priority exception arrives during the stacking phase of an exception entry (before the first instruction of the handler executes), the NVIC switches to service the higher-priority one first.
+
+Q: What registers control enabling/disabling of individual external interrupts?
+A: ISER (Interrupt Set-Enable Register) to enable, ICER (Interrupt Clear-Enable Register) to disable, per IRQ bit.
+
+Q: What registers control pending state of external interrupts?
+A: ISPR (Interrupt Set-Pending) to force-pend, ICPR (Interrupt Clear-Pending) to clear pending state.
+
+Q: What register holds per-interrupt priority values?
+A: IPR (Interrupt Priority Registers) - byte-accessible array, one byte per interrupt (upper bits implemented depending on silicon).
+
+Q: What register shows which interrupts are currently active?
+A: IABR (Interrupt Active Bit Register).
+
+Q: What is the vector table and where does it live?
+A: An array of 32-bit addresses at the base of memory (default address 0x00000000, relocatable via VTOR): entry 0 is the initial MSP value, entry 1 is the reset handler address, followed by NMI, HardFault, etc.
+
+Q: What is VTOR?
+A: Vector Table Offset Register - lets you relocate the vector table to a different base address (e.g., needed for bootloaders or running from RAM).
+
+
+-- FAULT HANDLING --
+
+Q: What is CFSR?
+A: Configurable Fault Status Register - byte-addressable register combining MMFSR (MemManage), BFSR (BusFault), and UFSR (UsageFault) status flags explaining the cause of the fault.
+
+Q: What is HFSR?
+A: HardFault Status Register - indicates the cause of a HardFault, e.g. FORCED (an escalated configurable fault) or VECTTBL (a bus fault on vector table read).
+
+Q: What is MMFAR?
+A: MemManage Fault Address Register - holds the faulting address for certain MemManage faults (valid only when MMFSR's MMARVALID bit is set).
+
+Q: What is BFAR?
+A: BusFault Address Register - holds the faulting address for certain bus faults (valid only when BFSR's BFARVALID bit is set).
+
+Q: When does a fault "escalate" to HardFault?
+A: When the handler for a configurable fault (MemManage/BusFault/UsageFault) is disabled, or the fault occurs at a priority that can't be taken (e.g. fault within a fault handler of equal/higher priority), it escalates to HardFault.
+
+Q: What causes a UsageFault due to "invalid state"?
+A: Attempting to execute in ARM state (Cortex-M3 is Thumb-only) or branching to a PC with a bad EPSR T-bit, e.g. jumping to a function pointer without the LSB set.
+
+Q: What causes a UsageFault "UNDEFINSTR"?
+A: Execution of an undefined/unrecognized instruction opcode.
+
+Q: What is a "stacking fault" vs "unstacking fault"?
+A: A stacking fault occurs when the processor can't push registers to the stack on exception entry (e.g., bad SP or MPU violation); an unstacking fault is the same but on exception return (pop).
+
+Q: What is FAULTMASK used for that PRIMASK isn't?
+A: Entering "priority -1" execution to guarantee even HardFault won't preempt - typically used briefly inside a HardFault handler itself, then cleared on return.
+
+
+-- BUS ARCHITECTURE --
+
+Q: What buses does the Cortex-M3 core expose?
+A: I-Code bus (instruction fetches from code space), D-Code bus (data/literal loads from code space), System bus (data access + instruction fetch to SRAM/peripheral/external regions), and the Private Peripheral Bus (PPB, for the debug/NVIC/SCS block).
+
+Q: What bus protocol do the Cortex-M3 core buses use?
+A: AHB-Lite (a subset of AMBA AHB), giving single-cycle, pipelined bus access without the full AHB feature set (no split transactions, single bus master per interface).
+
+Q: Why does the Cortex-M3 have separate I-Code and D-Code buses?
+A: To allow simultaneous instruction fetch and literal-pool/data access to Code space (Harvard-like split) for better performance, distinct from the System bus used for SRAM/peripherals.
+
+Q: What is the PPB (Private Peripheral Bus)?
+A: An internal bus (0xE0000000-0xE00FFFFF) providing access to the NVIC, SCB, SysTick, debug components (ITM, DWT, FPB), and external PPB region for vendor debug components.
+
+Q: How do external interrupts and DMA typically connect to memory?
+A: Through an AHB-to-APB bridge exposing peripherals on the APB (Advanced Peripheral Bus), which is simpler/lower bandwidth than AHB and typical for slower peripherals like UART/timers.
+
+
+-- MEMORY MAP --
+
+Q: What is the default Cortex-M3 memory map's Code region?
+A: 0x00000000 - 0x1FFFFFFF, typically Flash/ROM, executable, accessed via I-Code/D-Code buses.
+
+Q: What is the default SRAM region?
+A: 0x20000000 - 0x3FFFFFFF, on-chip RAM, includes the SRAM bit-band region and alias.
+
+Q: What is the default Peripheral region?
+A: 0x40000000 - 0x5FFFFFFF, on-chip peripherals, includes the peripheral bit-band region and alias.
+
+Q: What are the External RAM and External Device regions?
+A: 0x60000000-0x9FFFFFFF (External RAM, for off-chip memory-mapped RAM) and 0xA0000000-0xDFFFFFFF (External Device, for off-chip memory-mapped peripherals).
+
+Q: What occupies 0xE0000000-0xE00FFFFF?
+A: The Private Peripheral Bus internal region: NVIC, SCB, SysTick, MPU, debug (ITM, DWT, FPB).
+
+Q: What occupies 0xE0100000-0xFFFFFFFF?
+A: The remainder of the PPB (external PPB for vendor-specific debug/trace components) and the Vendor-specific memory region at the very top (0xE0100000-0xFFFFFFFF broadly reserved/vendor).
+
+
+-- BIT-BANDING --
+
+Q: What is bit-banding?
+A: A feature mapping each bit in specific SRAM/peripheral regions to a full word in an "alias" address region, so a single bit can be atomically read/written with a normal load/store instead of read-modify-write.
+
+Q: Which two regions support bit-banding?
+A: The lowest 1MB of SRAM (0x20000000-0x200FFFFF) and the lowest 1MB of the Peripheral region (0x40000000-0x400FFFFF), aliased into 32MB regions at 0x22000000 and 0x42000000 respectively.
+
+Q: Why is bit-banding useful in an RTOS/embedded context?
+A: It gives atomic, non-interruptible single-bit set/clear/test without needing to disable interrupts around a read-modify-write, useful for flags and GPIO toggling.
+
+
+-- SYSTICK & TIMING --
+
+Q: What is SysTick?
+A: A built-in 24-bit down-counting timer in the SCS, generating exception #15 on underflow; the standard source of the RTOS periodic tick.
+
+Q: What are the main SysTick registers?
+A: SYST_CSR (control/status: enable, tickint, clksource, countflag), SYST_RVR (reload value), SYST_CVR (current value), SYST_CALIB (calibration).
+
+Q: What clock sources can drive SysTick?
+A: Either the core (processor) clock or an external reference clock, selected via the CLKSOURCE bit in SYST_CSR.
+
+
+-- MISC / ISA --
+
+Q: What instruction set does Cortex-M3 execute?
+A: Thumb and Thumb-2 (mixed 16/32-bit encodings); it has no ARM (32-bit-only) execution state at all.
+
+Q: What is the DWT and why does it matter for benchmarking?
+A: Data Watchpoint and Trace unit - includes CYCCNT, a free-running cycle counter usable for precise instruction-cycle-accurate benchmarking (unlike SysTick which is typically used for OS ticks).
+
+Q: What is the difference between SVC and PendSV in typical RTOS usage?
+A: SVC is synchronous/explicit - called deliberately by user code (e.g., to request a context switch or syscall). PendSV is asynchronous/deferred - set pending by any code (often from an ISR) and executed at the lowest priority to perform the actual context switch safely.
+
+Q: What is the exception entry stack frame (basic, no FPU)?
+A: xPSR, PC, LR, R12, R3, R2, R1, R0 automatically pushed (in that address order) by hardware onto the active stack (MSP or PSP) before the handler runs.
+
+Q: Who is responsible for saving R4-R11 during a context switch?
+A: Software (the PendSV handler in an RTOS) - the hardware only auto-stacks R0-R3, R12, LR, PC, xPSR; callee-saved R4-R11 must be manually pushed/popped by the context-switch code.

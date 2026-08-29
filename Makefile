@@ -4,18 +4,14 @@ GDB     := arm-none-eabi-gdb
 READELF := arm-none-eabi-readelf
 NM      := arm-none-eabi-nm
 OBJDUMP := arm-none-eabi-objdump
-QEMU    := qemu-system-arm
 RENODE  := renode
 
 # -------- Target --------
 CPU   := cortex-m3
-BOARD := mps2-an385
 
-# Board to build/debug under Renode -- independent of BOARD above, which
-# is QEMU-specific (`make qemu` only supports mps2-an385; there's no
-# QEMU machine model for stm32f103 wired up here). stm32f103 is now the
-# main target board; override with RENODE_BOARD=mps2-an385 to build for
-# the older QEMU-compatible target instead.
+# Board to build/debug under Renode. stm32f103 is the main target board;
+# override with RENODE_BOARD=stm32f103c8t6 for the "Blue Pill" (64K flash /
+# 20K RAM) variant.
 RENODE_BOARD ?= stm32f103
 
 # -------- Paths --------
@@ -28,11 +24,13 @@ LD_SCRIPT            := linker/stm32f103.ld
 BSP_SRC               := bsp/stm32f103/systick.c
 RENODE_RUN_SCRIPT     := scripts/renode/stm32f103_run.resc
 RENODE_DEBUG_SCRIPT   := scripts/renode/stm32f103_debug.resc
+else ifeq ($(RENODE_BOARD),stm32f103c8t6)
+LD_SCRIPT            := linker/stm32f103c8t6.ld
+BSP_SRC               := bsp/stm32f103/systick.c
+RENODE_RUN_SCRIPT     := scripts/renode/stm32f103c8t6_run.resc
+RENODE_DEBUG_SCRIPT   := scripts/renode/stm32f103c8t6_debug.resc
 else
-LD_SCRIPT            := linker/mps2-an385.ld
-BSP_SRC               := bsp/qemu_mps2/systick.c
-RENODE_RUN_SCRIPT     := scripts/renode/run.resc
-RENODE_DEBUG_SCRIPT   := scripts/renode/debug.resc
+$(error Unknown RENODE_BOARD '$(RENODE_BOARD)' -- expected stm32f103 or stm32f103c8t6)
 endif
 
 # -------- Flags --------
@@ -60,7 +58,7 @@ SRCS := \
 
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
-.PHONY: build check-board bench-sched qemu qemu-bench-sched renode renode-debug renode-run debug sections segments symbols disasm clean
+.PHONY: build check-board bench-sched renode renode-debug debug sections segments symbols disasm clean
 
 # ---------- Build ----------
 # build/rtos.elf's path doesn't vary by RENODE_BOARD or APP_SRC, but its
@@ -92,32 +90,31 @@ $(ELF): $(OBJS) $(LD_SCRIPT)
 	$(CC) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@
 
 # ---------- Run / Debug ----------
-qemu: build
-	$(QEMU) -M $(BOARD) -cpu $(CPU) -nographic -kernel $(ELF) -S -s
-
-# NOTE: QEMU's mps2-an385 model does not implement the DWT unit, so
-# DWT_CYCCNT (used by bench/bench_clock.c) always reads back 0 under qemu.
-# Use `make renode` for cycle-count-based benchmarking.
 renode: build
 	$(RENODE) --disable-gui $(RENODE_RUN_SCRIPT)
 
-renode-debug: build
-	$(RENODE) --disable-gui $(RENODE_DEBUG_SCRIPT)
-
-# GDB port must match `machine StartGdbServer` in scripts/renode/debug.resc.
+# GDB port must match `machine StartGdbServer` in $(RENODE_DEBUG_SCRIPT).
 RENODE_GDB_PORT := 3333
 RENODE_LOG      := $(BUILD_DIR)/renode.log
 
 # Starts Renode in the background (log at $(RENODE_LOG)), waits for its GDB
-# server to come up, attaches gdb, then kills Renode when gdb exits.
-renode-run: build
-	if lsof -nP -iTCP:$(RENODE_GDB_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
-		echo "Port $(RENODE_GDB_PORT) is already in use -- a Renode session from" >&2; \
-		echo "a previous run is likely still alive (its cleanup only fires on a" >&2; \
-		echo "clean gdb exit, not if you Ctrl-C the whole 'make renode-run')." >&2; \
-		echo "Find it:  lsof -nP -iTCP:$(RENODE_GDB_PORT)" >&2; \
-		echo "Kill it:  pkill -f Renode.dll" >&2; \
+# server to come up, attaches gdb, then kills Renode when gdb exits. If a
+# Renode session from a previous run is still holding the GDB port (its
+# cleanup only fires on a clean gdb exit, not on Ctrl-C), kill it first.
+#
+# Deliberately does NOT depend on `build` -- it debugs whatever ELF was
+# last built, instead of silently rebuilding (and possibly wiping/relinking
+# against a different RENODE_BOARD/APP_SRC than you meant to debug, see
+# check-board) every time you attach. Run `make build` yourself first.
+renode-debug:
+	if [ ! -f $(ELF) ]; then \
+		echo "$(ELF) not found -- run 'make build' first" >&2; \
 		exit 1; \
+	fi; \
+	if lsof -nP -iTCP:$(RENODE_GDB_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Port $(RENODE_GDB_PORT) is already in use -- killing existing Renode session" >&2; \
+		kill $$(lsof -nP -tiTCP:$(RENODE_GDB_PORT) -sTCP:LISTEN) 2>/dev/null; \
+		while lsof -nP -iTCP:$(RENODE_GDB_PORT) -sTCP:LISTEN >/dev/null 2>&1; do sleep 0.2; done; \
 	fi; \
 	$(RENODE) --disable-gui $(RENODE_DEBUG_SCRIPT) > $(RENODE_LOG) 2>&1 & \
 	RENODE_PID=$$!; \

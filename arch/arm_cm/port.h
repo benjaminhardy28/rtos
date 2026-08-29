@@ -10,14 +10,7 @@ OS_KERNEL_TEXT void SVC_Handler(void);
 OS_KERNEL_TEXT uint32_t os_port_irq_save(void); // disable interrupts and return previous PRIMASK value
 OS_KERNEL_TEXT void os_port_irq_restore(uint32_t primask); // restore PRIMASK to re-enable interrupts if they were previously enabled (if primask == 0)
 
-// __asm format:
-
-// __asm volatile (
-//     "assembly text"
-//     : outputs
-//     : inputs
-//     : clobbers
-// );
+// __asm format: __asm volatile ("assembly text" : outputs : inputs : clobbers);
 
 
 OS_USER_TEXT static inline uint32_t os_port_svc_call0(uint32_t syscall_id) {

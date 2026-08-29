@@ -3,7 +3,10 @@
 #include "../include/os/app.h"
 #include <stdint.h>
 
-OS_KERNEL_TEXT static void os_idle_task(void *arg) {
+// Runs like any other task -- dispatched unprivileged through the same trampoline as user
+// tasks (see os_task_start_trampoline in arch/arm_cm/port.c) -- so it must live in
+// user-accessible flash; OS_KERNEL_TEXT faulted the scheduler's first (idle task) switch.
+OS_USER_TEXT static void os_idle_task(void *arg) {
     (void)arg;
     for (;;) {
     }

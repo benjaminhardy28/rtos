@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include "../arch/arm_cm/port.h"
-#include "../bsp/qemu_mps2/systick.h"
+#include "../bsp/stm32f103/systick.h"
 #include "../include/os/section.h"
 #include "../include/os/task.h"
 #include "../include/os/mutex.h"

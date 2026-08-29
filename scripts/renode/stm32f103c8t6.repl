@@ -1,22 +1,20 @@
-// STM32F103 (Cortex-M3), "high-density" line (512K flash / 64K RAM,
-// matching e.g. STM32F103VE/ZE) -- sized to match linker/stm32f103.ld,
-// see that file for why this variant was picked over the smaller
-// "Blue Pill" C8T6.
+// STM32F103C8T6 ("Blue Pill"): 64K flash / 20K RAM.
 //
-// Trimmed to just what this RTOS uses today, following a "headless,
-// minimal platform" convention (no UART/GPIO/timers wired up -- add
-// them here if/when drivers exist).
+// Flash and SRAM sit at their real hardware addresses (0x08000000 /
+// 0x20000000), matching linker/stm32f103c8t6.ld exactly -- unlike
+// stm32f103.repl's high-density variant, which maps flash at 0x0 to
+// match a linker script that relies on the BOOT0 alias. Keeping the
+// same addresses in the emulator and on real silicon means an image
+// built for this board runs identically in both places.
 //
-// CAN.STMCAN isn't in Renode's bundled stm32f103.repl, but it's the
-// same peripheral model stm32f4.repl/stm32g0.repl use, at the same
-// 0x40006400 bxCAN address real STM32F103 hardware has, so it's added
-// manually below.
+// Same "headless, minimal platform" convention as stm32f103.repl -- no
+// UART/GPIO/timers wired up beyond what this RTOS currently uses.
 
-flash: Memory.MappedMemory @ sysbus 0x00000000
-    size: 0x00080000
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x00010000
 
 sram: Memory.MappedMemory @ sysbus 0x20000000
-    size: 0x00010000
+    size: 0x00005000
 
 nvic: IRQControllers.NVIC @ sysbus 0xE000E000
     priorityMask: 0xF0
@@ -30,7 +28,7 @@ cpu: CPU.CortexM @ sysbus
     cpuType: "cortex-m3"
     nvic: nvic
 
-// Backs DWT_CYCCNT (bench/bench_clock.c).
+// Backs DWT_CYCCNT (bench/bench_clock.c), same as stm32f103.repl.
 dwt: Miscellaneous.DWT @ sysbus 0xE0001000
     frequency: 25000000
 

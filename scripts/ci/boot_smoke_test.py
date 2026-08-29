@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-# Headless Renode boot smoke test: loads the ELF, runs it for a fixed
-# amount of virtual time, then checks that boot actually reached
-# os_app_main (g_reached_main sentinel) and that the core isn't sitting
-# in a fault handler (HardFault/MemManage/BusFault/UsageFault all alias
-# to Default_Handler -- see arch/arm_cm/startup.c). This is a regression
-# check for exactly the kind of boot-path breakage a bad MPU/privilege
-# change can cause silently (see arch/arm_cm/port.c's first-switch
-# privilege workaround).
-#
-# NOTE: kernel/task.c currently has systick_enable() commented out, so
-# ticks never fire and tick-driven behavior (delays, the app/app_main.c
-# queue demo) can't be exercised yet. This test only covers boot +
-# first-task-start; extend it with queue/tick assertions once ticks are
-# back on.
+# Headless Renode boot smoke test: loads the ELF, runs for a fixed time, and checks that
+# boot reached os_app_main without landing in a fault handler -- a regression check for
+# bad MPU/privilege setup. NOTE: covers boot + first-task-start only; see TODO for planned tick/queue assertions.
 import argparse
 import re
 import subprocess

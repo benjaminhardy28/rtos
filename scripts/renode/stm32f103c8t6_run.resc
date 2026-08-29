@@ -1,6 +1,6 @@
 using sysbus
 
 mach create "rtos"
-machine LoadPlatformDescription @scripts/renode/mps2-an385.repl
+machine LoadPlatformDescription @scripts/renode/stm32f103c8t6.repl
 sysbus LoadELF @build/rtos.elf
 start

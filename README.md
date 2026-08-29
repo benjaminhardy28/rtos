@@ -41,7 +41,7 @@ Main responsibilities:
 - timer or SysTick setup helpers
 - simple bring-up support for the selected board/platform
 
-In this repository, the BSP is currently lightweight and mainly provides SysTick support for the QEMU MPS2 target.
+In this repository, the BSP is currently lightweight and mainly provides SysTick support for the STM32F103 target.
 
 ### `include/`
 This directory contains shared headers. It is the beginning of the public interface boundary between application code and internal kernel code.
@@ -75,16 +75,14 @@ With the current layout, the linker script is also part of the privilege archite
 - kernel RAM
 
 ### `scripts/`
-Helper scripts for running or debugging the firmware in QEMU or Renode.
+Helper scripts for running or debugging the firmware in Renode.
 
 These are development conveniences rather than part of the RTOS itself.
 
-`scripts/renode/` contains the Renode platform description (`mps2-an385.repl`)
-and `.resc` launch scripts (`run.resc`, `debug.resc`) for the same Cortex-M3
-target QEMU uses. Renode is the tool to reach for when doing latency work
-with `bench/`: QEMU's `mps2-an385` model does not implement the DWT unit at
-all (`DWT_CYCCNT` always reads back 0), while Renode models it, so
-`os_bench_clock_now()` returns real, deterministic cycle counts there.
+`scripts/renode/` contains the Renode platform descriptions (`stm32f103.repl`,
+`stm32f103c8t6.repl`) and `.resc` launch scripts for booting/debugging under
+Renode. Renode models the DWT unit, so `os_bench_clock_now()` (used by
+`bench/`) returns real, deterministic cycle counts there.
 
 ## How The Pieces Fit Together
 
@@ -128,13 +126,13 @@ Some useful anchor points in the repo:
 - `kernel/tick.c`: tick count, delays, timeout processing
 - `arch/arm_cm/port.c`: PendSV, SVC, IRQ helpers, MPU setup
 - `arch/arm_cm/startup.c`: reset handler and vector table
-- `linker/mps2-an385.ld`: memory layout and section placement
+- `linker/stm32f103.ld`: memory layout and section placement
 
 ## Build Notes
 
 The project is currently set up for:
 - ARM Cortex-M3
-- QEMU `mps2-an385`
+- STM32F103 (main board; override with `RENODE_BOARD=stm32f103c8t6` for the "Blue Pill" variant)
 
 Build with:
 
@@ -142,19 +140,14 @@ Build with:
 make build
 ```
 
-Run under QEMU with:
-
-```sh
-make qemu
-```
-
-Run under Renode (needed for `bench/` cycle counts, since QEMU stubs out
-DWT_CYCCNT) with:
+Run under Renode with:
 
 ```sh
 make renode
 ```
 
-Debug under Renode with `make renode-debug`, then connect with
-`arm-none-eabi-gdb -ex "target remote :3333" build/rtos.elf` (port 3333,
-not 1234 -- Renode's own console monitor already uses 1234).
+Debug under Renode with `make renode-debug`, which starts Renode, waits
+for its GDB server to come up, and attaches `arm-none-eabi-gdb`
+automatically (port 3333, not 1234 -- Renode's own console monitor
+already uses 1234). If a previous session is still holding the port, it
+gets killed first.

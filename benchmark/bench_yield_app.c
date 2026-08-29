@@ -3,12 +3,14 @@
 #include "../include/os/task.h"
 #include <stdint.h>
 
-/* Debug variables you can watch in GDB/Renode */
-volatile uint32_t g_yield_start_cycle;
-volatile uint32_t g_yield_end_cycle;
-volatile uint32_t g_yield_latency_cycles;
-volatile uint32_t g_worker_ready;
-volatile uint32_t g_ping;
+// Debug variables to watch -- OS_USER_BSS since worker_task/pinger_task run unprivileged;
+// without it these fall into the linker script's .bss.kernel catch-all (privileged-only
+// RAM) and fault the instant an unprivileged task touches them.
+OS_USER_BSS volatile uint32_t g_yield_start_cycle;
+OS_USER_BSS volatile uint32_t g_yield_end_cycle;
+OS_USER_BSS volatile uint32_t g_yield_latency_cycles;
+OS_USER_BSS volatile uint32_t g_worker_ready;
+OS_USER_BSS volatile uint32_t g_ping;
 
 OS_USER_TEXT static void worker_task(void *arg)
 {
@@ -26,10 +28,7 @@ OS_USER_TEXT static void worker_task(void *arg)
     }
 }
 
-/* Runs the wait-for-ready + ping in a real task, since the scheduler
- * (and PSP/g_current) isn't initialized until os_start() runs *after*
- * os_app_main() returns -- os_yield() is not safe to call from
- * os_app_main() itself. */
+
 OS_USER_TEXT static void pinger_task(void *arg)
 {
     (void)arg;

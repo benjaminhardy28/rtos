@@ -9,16 +9,33 @@ RAM (runtime)
   ├── .data (copied at boot)
   ├── .bss (zeroed)
   └── stacks / heaps
+
+Sized for the "Blue Pill" STM32F103C8T6: 64K flash / 20K RAM. 20K
+doesn't split into two equal power-of-two halves (needed by the MPU
+region setup in arch/arm_cm/port.c), so the split is uneven: 16K user /
+4K kernel is the only power-of-two pair that sums to 20K. Measured
+actual usage (see build/rtos.elf with the default app) is ~8.5K user
+(mostly OS_TASK_STACK_COUNT * OS_TASK_STACK_WORDS task stacks, see
+kernel/kalloc.h) and ~2.1K kernel (kernel object pool + TCBs), so both
+halves have headroom.
+
+Flash is mapped at its real hardware address 0x08000000 here (unlike
+linker/stm32f103.ld's high-density variant, which links at 0x0 to match
+Renode's boot-alias simplification). scripts/renode/stm32f103c8t6.repl
+mirrors this same 0x08000000 base, so the emulator and real silicon see
+identical addresses -- no separate hardware-only linker script needed,
+and flashing tools (OpenOCD/st-flash) get the address they expect
+without relying on the BOOT0-driven 0x0 alias.
 */
 
 
 ENTRY(Reset_Handler)
 
 MEMORY {
-  FLASH_USER   (rx)  : ORIGIN = 0x00000000, LENGTH = 256K
-  FLASH_KERNEL (rx)  : ORIGIN = 0x00040000, LENGTH = 256K
-  RAM_USER     (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
-  RAM_KERNEL   (rwx) : ORIGIN = 0x20020000, LENGTH = 128K
+  FLASH_USER   (rx)  : ORIGIN = 0x08000000, LENGTH = 32K
+  FLASH_KERNEL (rx)  : ORIGIN = 0x08008000, LENGTH = 32K
+  RAM_USER     (rwx) : ORIGIN = 0x20000000, LENGTH = 16K
+  RAM_KERNEL   (rwx) : ORIGIN = 0x20004000, LENGTH = 4K
 }
 
 __user_flash_region_start__ = ORIGIN(FLASH_USER);

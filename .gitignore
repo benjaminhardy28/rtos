@@ -30,7 +30,6 @@ cmake-build-*/
 *.log
 *.trace
 *.vcd
-qemu_*.log
 core
 core.*
 
@@ -56,6 +55,7 @@ __pycache__/
 
 # --- Extra materials
 notes.md
+corext_m3_flashcards.txt
 
 # not ready, need hardware lol
 bench/

@@ -7,4 +7,4 @@ sysbus LoadELF @build/rtos.elf
 # mode, so the GDB server uses 3333 instead to avoid colliding with it.
 machine StartGdbServer 3333
 # Machine stays halted here (no `start`) so GDB can attach and control
-# execution from reset, mirroring `qemu -S -s`.
+# execution from reset.
