@@ -72,6 +72,7 @@ SRCS := \
 	kernel/queue.c \
 	kernel/lfqueue.c \
 	kernel/kalloc.c \
+	kernel/rtt.c \
 	$(BSP_SRC)
 
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)

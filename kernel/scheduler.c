@@ -6,72 +6,7 @@
 OS_KERNEL_BSS static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
 OS_KERNEL_BSS static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
 
-OS_KERNEL_TEXT static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
-    return (int32_t)(now - wake_tick) >= 0;
-}
-
-OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
-    os_tcb_t *iter;
-
-    if (!tcb) {
-        return;
-    }
-
-    tcb->timeout_next = NULL;
-    tcb->timeout_prev = NULL;
-
-    if (g_timeout_queue.head == NULL) {
-        g_timeout_queue.head = tcb;
-        g_timeout_queue.tail = tcb;
-        return;
-    }
-
-    iter = g_timeout_queue.head;
-    // after the loop, iter contains the first wake_tick greater than tcb's wake_tick, or NULL if tcb has the latest wake_tick and should be at the end of the queue
-    while (iter != NULL && !os_tick_reached(iter->wake_tick, tcb->wake_tick)) {
-        iter = iter->timeout_next;
-    }
-
-    if (iter == NULL) {
-        tcb->timeout_prev = g_timeout_queue.tail;
-        g_timeout_queue.tail->timeout_next = tcb;
-        g_timeout_queue.tail = tcb;
-        return;
-    }
-
-    // insert tcb before iter, since iter is the first task in the queue with a wake_tick greater than tcb's wake_tick
-    tcb->timeout_next = iter;
-    tcb->timeout_prev = iter->timeout_prev; 
-
-    if (iter->timeout_prev != NULL) {
-        iter->timeout_prev->timeout_next = tcb;
-    } else {
-        g_timeout_queue.head = tcb;
-    }
-
-    iter->timeout_prev = tcb;
-}
-
-OS_KERNEL_TEXT static void os_timeout_queue_remove(os_tcb_t *tcb) {
-    if (!tcb) {
-        return;
-    }
-
-    if (tcb->timeout_prev != NULL) {
-        tcb->timeout_prev->timeout_next = tcb->timeout_next;
-    } else if (g_timeout_queue.head == tcb) {
-        g_timeout_queue.head = tcb->timeout_next;
-    }
-
-    if (tcb->timeout_next != NULL) {
-        tcb->timeout_next->timeout_prev = tcb->timeout_prev;
-    } else if (g_timeout_queue.tail == tcb) {
-        g_timeout_queue.tail = tcb->timeout_prev;
-    }
-
-    tcb->timeout_next = NULL;
-    tcb->timeout_prev = NULL;
-}
+// Generic task queue functions, used by ready queue and wait queue functions
 
 OS_KERNEL_TEXT void os_task_queue_init(os_task_queue_t *queue) {
     if (!queue) return;
@@ -160,7 +95,7 @@ OS_KERNEL_TEXT void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_
     }
 }
 
-// Ready queue functions just call the generic queue functions with the appropriate priority queue
+// Ready queue functions, call the generic queue functions with the appropriate priority queue
 
 OS_KERNEL_TEXT void os_ready_queue_rotate(os_tcb_t *tcb){
     if (!tcb) return;
@@ -199,26 +134,105 @@ OS_KERNEL_TEXT void os_schedule(void){
     g_next = NULL; // no ready tasks found
 }
 
-OS_KERNEL_TEXT void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority) {
-    if (!tcb || new_priority > OS_TASK_IDLE) return;
+// Timeout queue functions
 
-    // Update the tasks prority 
-    if (tcb->state == OS_TASK_READY || tcb->state == OS_TASK_RUNNING) {
-        os_ready_queue_remove(tcb);
-        tcb->priority = new_priority;
-        os_ready_queue_add(tcb);
-    } else {
-        tcb->priority = new_priority;
+OS_KERNEL_TEXT static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
+    return (int32_t)(now - wake_tick) >= 0;
+}
+
+OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
+    os_tcb_t *iter;
+
+    if (!tcb) {
+        return;
     }
 
-    // Re-insert the task into any priority based wait queues it may be in, this will only ever be called for a mutex 
-    if(tcb->state == OS_TASK_BLOCKED && tcb->wait_queue != NULL) {
-        os_task_queue_remove(tcb->wait_queue, tcb);
-        os_task_queue_insert_by_priority(tcb->wait_queue, tcb);
+    tcb->timeout_next = NULL;
+    tcb->timeout_prev = NULL;
+
+    if (g_timeout_queue.head == NULL) {
+        g_timeout_queue.head = tcb;
+        g_timeout_queue.tail = tcb;
+        return;
+    }
+
+    iter = g_timeout_queue.head;
+    // after the loop, iter contains the first wake_tick greater than tcb's wake_tick, or NULL if tcb has the latest wake_tick and should be at the end of the queue
+    while (iter != NULL && !os_tick_reached(iter->wake_tick, tcb->wake_tick)) {
+        iter = iter->timeout_next;
+    }
+
+    if (iter == NULL) {
+        tcb->timeout_prev = g_timeout_queue.tail;
+        g_timeout_queue.tail->timeout_next = tcb;
+        g_timeout_queue.tail = tcb;
+        return;
+    }
+
+    // insert tcb before iter, since iter is the first task in the queue with a wake_tick greater than tcb's wake_tick
+    tcb->timeout_next = iter;
+    tcb->timeout_prev = iter->timeout_prev;
+
+    if (iter->timeout_prev != NULL) {
+        iter->timeout_prev->timeout_next = tcb;
+    } else {
+        g_timeout_queue.head = tcb;
+    }
+
+    iter->timeout_prev = tcb;
+}
+
+OS_KERNEL_TEXT static void os_timeout_queue_remove(os_tcb_t *tcb) {
+    if (!tcb) {
+        return;
+    }
+
+    if (tcb->timeout_prev != NULL) {
+        tcb->timeout_prev->timeout_next = tcb->timeout_next;
+    } else if (g_timeout_queue.head == tcb) {
+        g_timeout_queue.head = tcb->timeout_next;
+    }
+
+    if (tcb->timeout_next != NULL) {
+        tcb->timeout_next->timeout_prev = tcb->timeout_prev;
+    } else if (g_timeout_queue.tail == tcb) {
+        g_timeout_queue.tail = tcb->timeout_prev;
+    }
+
+    tcb->timeout_next = NULL;
+    tcb->timeout_prev = NULL;
+}
+
+OS_KERNEL_TEXT void os_process_timeouts(void) {
+    os_tcb_t *tcb;
+    uint32_t now;
+
+    now = os_tick_get();
+    tcb = g_timeout_queue.head;
+
+    while (tcb != NULL && os_tick_reached(now, tcb->wake_tick)) { // task's wake tick has been reached, unblock it with a timeout result
+        os_tcb_t *next = tcb->timeout_next;
+
+        os_timeout_queue_remove(tcb);
+        if (tcb->wait_queue != NULL) {
+            os_task_queue_remove(tcb->wait_queue, tcb);
+            tcb->wait_queue = NULL;
+        }
+        tcb->wake_tick = OS_WAIT_FOREVER; // reset wake_tick since we're no longer using it for timeout
+        tcb->wait_result = -1;
+        tcb->state = OS_TASK_READY;
+        os_ready_queue_add(tcb);
+
+        tcb = next;
+    }
+
+    os_schedule();
+    if (g_next != g_current) {
+        os_port_pendsv_trigger();
     }
 }
 
-// wait queue functions
+// Wait queue functions
 
 OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks, bool priority_ordered)
 {
@@ -279,32 +293,24 @@ OS_KERNEL_TEXT os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
     return tcb;
 }
 
-OS_KERNEL_TEXT void os_process_timeouts(void) {
-    os_tcb_t *tcb;
-    uint32_t now;
+// Task priority functions - touches both the ready queue and priority-ordered wait queues
 
-    now = os_tick_get();
-    tcb = g_timeout_queue.head;
+OS_KERNEL_TEXT void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority) {
+    if (!tcb || new_priority > OS_TASK_IDLE) return;
 
-    while (tcb != NULL && os_tick_reached(now, tcb->wake_tick)) { // task's wake tick has been reached, unblock it with a timeout result
-        os_tcb_t *next = tcb->timeout_next;
-
-        os_timeout_queue_remove(tcb);
-        if (tcb->wait_queue != NULL) {
-            os_task_queue_remove(tcb->wait_queue, tcb);
-            tcb->wait_queue = NULL;
-        }
-        tcb->wake_tick = OS_WAIT_FOREVER; // reset wake_tick since we're no longer using it for timeout
-        tcb->wait_result = -1;
-        tcb->state = OS_TASK_READY;
+    // Update the tasks prority
+    if (tcb->state == OS_TASK_READY || tcb->state == OS_TASK_RUNNING) {
+        os_ready_queue_remove(tcb);
+        tcb->priority = new_priority;
         os_ready_queue_add(tcb);
-
-        tcb = next;
+    } else {
+        tcb->priority = new_priority;
     }
 
-    os_schedule();
-    if (g_next != g_current) {
-        os_port_pendsv_trigger();
+    // Re-insert the task into any priority based wait queues it may be in, this will only ever be called for a mutex
+    if(tcb->state == OS_TASK_BLOCKED && tcb->wait_queue != NULL) {
+        os_task_queue_remove(tcb->wait_queue, tcb);
+        os_task_queue_insert_by_priority(tcb->wait_queue, tcb);
     }
 }
 
