@@ -43,6 +43,11 @@ Thumbs.db
 .vscode/
 *.code-workspace
 
+# ---- STM32CubeIDE / Eclipse CDT ----
+.cproject
+.project
+.settings/
+
 # ---- Python / misc tooling (if you add scripts) ----
 __pycache__/
 *.pyc

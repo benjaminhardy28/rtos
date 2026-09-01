@@ -33,8 +33,26 @@ else
 $(error Unknown RENODE_BOARD '$(RENODE_BOARD)' -- expected stm32f103 or stm32f103c8t6)
 endif
 
+# -------- Real hardware clock bring-up (opt-in) --------
+# HW=0 (default): boots on the reset-default 8MHz HSI, never touches RCC.
+# Required for Renode -- its platform files (scripts/renode/*.repl) don't
+# model RCC, so an HSERDY/PLLRDY poll there spins forever. Renode's own
+# SysTick/DWT frequency is fixed at 25MHz regardless of real RCC state
+# (see scripts/renode/*.repl), which is what OS_CPU_HZ tracks below.
+#
+# HW=1: compiles in bsp/stm32f103/clock.c and runs real HSE+PLL bring-up
+# to 72MHz before the scheduler starts ticking. Only meaningful when
+# flashing real silicon -- e.g. `make build RENODE_BOARD=stm32f103c8t6 HW=1`.
+HW ?= 0
+ifeq ($(HW),1)
+BSP_SRC += bsp/stm32f103/clock.c
+CFLAGS  += -DOS_HW_CLOCK_INIT -DOS_CPU_HZ=72000000u
+else
+CFLAGS  += -DOS_CPU_HZ=25000000u
+endif
+
 # -------- Flags --------
-CFLAGS  := -mcpu=$(CPU) -mthumb -O0 -g -ffreestanding -nostdlib -I.
+CFLAGS  += -mcpu=$(CPU) -mthumb -O0 -g -ffreestanding -nostdlib -I.
 LDFLAGS := -T $(LD_SCRIPT)
 
 # -------- Sources (edit to match your tree) --------
@@ -61,14 +79,15 @@ OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 .PHONY: build check-board bench-sched renode renode-debug debug sections segments symbols disasm clean
 
 # ---------- Build ----------
-# build/rtos.elf's path doesn't vary by RENODE_BOARD or APP_SRC, but its
-# actual link inputs (LD_SCRIPT, BSP_SRC, APP_SRC) do -- make can't detect
-# a Makefile *variable* changing between invocations via mtimes alone, so
-# switching either without this would silently relink against stale
-# objects from whichever combination was last built. This tracks the
-# last-built (board, app) pair and wipes the build dir if it changed.
+# build/rtos.elf's path doesn't vary by RENODE_BOARD, APP_SRC, or HW, but
+# its actual link inputs (LD_SCRIPT, BSP_SRC, APP_SRC, CFLAGS) do -- make
+# can't detect a Makefile *variable* changing between invocations via
+# mtimes alone, so switching any of them without this would silently
+# relink against stale objects from whichever combination was last built.
+# This tracks the last-built (board, app, hw) triple and wipes the build
+# dir if it changed.
 BOARD_MARKER := $(BUILD_DIR)/.board_marker
-BUILD_ID := $(RENODE_BOARD)|$(APP_SRC)
+BUILD_ID := $(RENODE_BOARD)|$(APP_SRC)|$(HW)
 
 check-board:
 	mkdir -p $(BUILD_DIR)

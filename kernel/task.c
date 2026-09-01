@@ -18,6 +18,10 @@ OS_USER_BSS volatile uint32_t g_debug_value1;
 
 extern void os_task_start_trampoline(void); // arch/arm_cm/port.c
 
+#ifdef OS_HW_CLOCK_INIT
+extern void clock_init(void); // bsp/stm32f103/clock.c -- real hardware only, see Makefile HW=1
+#endif
+
 OS_USER_TEXT void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return); user-accessible flash since a task running unprivileged needs fetch permission for it; not static so arch/arm_cm/port.c's trampoline can set it as lr
   for (;;) {}
 }
@@ -134,7 +138,11 @@ OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to
   os_port_mpu_init(); // initialize MPU to set memory permissions for user/kernel regions
   g_first_switch = 1;
 
-  systick_init(25000000u, 1000u); // initialize tick timer to generate interrupt every 1ms, pass CPU frequency and desired tick frequency
+#ifdef OS_HW_CLOCK_INIT
+  clock_init(); // real hardware: HSI 8MHz -> HSE+PLL 72MHz before ticks start
+#endif
+
+  systick_init(OS_CPU_HZ, 1000u); // initialize tick timer to generate interrupt every 1ms, pass CPU frequency and desired tick frequency
 
   os_schedule();
   g_current = g_next; // first selected task
