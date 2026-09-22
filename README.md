@@ -1,153 +1,65 @@
-# Custom Cortex-M RTOS
+# RTOS
 
-This repository contains a small RTOS for ARM Cortex-M systems. The codebase is split into portable kernel logic, Cortex-M-specific port code, board support code, public API headers, and linker scripts that define the firmware memory layout.
+This is a project that I have been working on during my free time to gain a deeper understanding of Real Time Operating Systems (RTOS). The RTOS is designed for an ARM Cortex-M3 processor and I'm targetting a STM32, using renode for emulation and a physical STM32f103 board. A lot of the design decisions and features of this RTOS were built for learning purposes, including the kernel vs user space seperation. I'm also working on benchmarking how design choices can impact latency, like by comparing the blocking vs lockfree queue.
 
-## Directory Structure
-
-### `kernel/`
-This directory contains the core RTOS logic. It is the main implementation of scheduling, blocking, wakeups, and synchronization behavior, and it is intended to stay as CPU-agnostic as possible.
-
-Main responsibilities:
-- task and TCB management
-- ready queues and wait queues
-- timeout and tick-based blocking logic
-- synchronization primitives such as semaphores and mutexes
-- privileged kernel implementations behind the public RTOS APIs
-
-Important idea:
-- `kernel/` is where the RTOS decides what should happen
-- `arch/` is where the CPU-specific mechanism for making it happen lives
-
-### `arch/arm_cm/`
-This directory is the Cortex-M port layer. It contains code that depends on ARM exception behavior, stack layout, special registers, and low-level assembly.
-
-Main responsibilities:
-- reset entry and vector table
-- `PendSV_Handler` for context switching
-- `SVC_Handler` for syscall entry from thread mode into privileged handler mode
-- interrupt masking helpers such as `PRIMASK` save/restore
-- MPU setup and memory protection policy
-- stack pointer and exception frame handling (`MSP`, `PSP`, `EXC_RETURN`)
-
-Important idea:
-- `kernel/` asks for a context switch or blocking operation
-- `arch/arm_cm/` implements the Cortex-M-specific path that performs it
-
-### `bsp/`
-The Board Support Package contains target-specific hardware support. This is where board- or emulator-specific peripherals and timing setup live.
-
-Main responsibilities:
-- target peripheral definitions
-- timer or SysTick setup helpers
-- simple bring-up support for the selected board/platform
-
-In this repository, the BSP is currently lightweight and mainly provides SysTick support for the STM32F103 target.
-
-### `include/`
-This directory contains shared headers. It is the beginning of the public interface boundary between application code and internal kernel code.
-
-Current layout:
-- `include/os/` contains the public RTOS-facing API surface
-- public headers declare what application code is allowed to call
-- internal kernel details remain in `kernel/*.h`
-
-Important idea:
-- `include/os/` is the API contract
-- `kernel/*.h` contains internal implementation details the kernel needs for itself
-
-This split matters for the privilege model:
-- public API stubs can be placed in user-accessible flash
-- privileged kernel implementations can remain in protected kernel regions
-
-### `linker/`
-This directory contains linker scripts that define how the firmware image is placed into memory.
-
-Main responsibilities:
-- define FLASH and RAM regions
-- place code and data sections at concrete addresses
-- provide symbols used by startup code and MPU setup
-- separate user-accessible memory from privileged kernel memory
-
-With the current layout, the linker script is also part of the privilege architecture because it separates:
-- user flash
-- kernel flash
-- user RAM
-- kernel RAM
-
-### `scripts/`
-Helper scripts for running or debugging the firmware in Renode.
-
-These are development conveniences rather than part of the RTOS itself.
-
-`scripts/renode/` contains the Renode platform descriptions (`stm32f103.repl`,
-`stm32f103c8t6.repl`) and `.resc` launch scripts for booting/debugging under
-Renode. Renode models the DWT unit, so `os_bench_clock_now()` (used by
-`bench/`) returns real, deterministic cycle counts there.
-
-## How The Pieces Fit Together
-
-The system is organized as a layered RTOS:
-
-1. Application code calls the public RTOS API declared in `include/os/`.
-2. User-facing API stubs can issue `SVC` to cross from thread mode into privileged handler mode.
-3. `SVC_Handler` dispatches to privileged kernel implementations in `kernel/`.
-4. The scheduler and synchronization code decide which task should run next.
-5. `PendSV_Handler` performs the actual context switch by saving and restoring thread context.
-6. `SysTick_Handler` drives timekeeping and timeout processing.
-7. The MPU and linker layout work together to keep kernel code/data privileged-only while leaving user code/data accessible to unprivileged threads.
-
-## Memory And Privilege Model
-
-The current design is moving toward a split between:
-- user-facing code that runs in thread mode on PSP
-- privileged kernel work that runs in handler mode on MSP
-
-The intended model is:
-- application threads call small public API stubs
-- those stubs trap into `SVC`
-- privileged kernel code performs scheduling and synchronization work
-- `PendSV` applies deferred context switches
-- the MPU prevents unprivileged threads from directly touching kernel-only code and data
-
-That means this repository is not just split by source directory. It is also split by role:
-- public interface
-- privileged kernel implementation
-- architecture-specific trap/switch machinery
-- board-specific hardware support
-- linker-defined memory protection boundaries
-
-## Quick File Guide
-
-Some useful anchor points in the repo:
-- `kernel/task.c`: task creation, scheduler start, yield path
-- `kernel/scheduler.c`: ready queues, blocking, wakeups, timeout handling
-- `kernel/semaphore.c`: semaphore implementation
-- `kernel/mutex.c`: mutex implementation
-- `kernel/tick.c`: tick count, delays, timeout processing
-- `arch/arm_cm/port.c`: PendSV, SVC, IRQ helpers, MPU setup
-- `arch/arm_cm/startup.c`: reset handler and vector table
-- `linker/stm32f103.ld`: memory layout and section placement
-
-## Build Notes
-
-The project is currently set up for:
-- ARM Cortex-M3
-- STM32F103 (main board; override with `RENODE_BOARD=stm32f103c8t6` for the "Blue Pill" variant)
-
-Build with:
+## Getting Started
 
 ```sh
-make build
+make build            # builds build/rtos.elf for stm32f103
+make renode            # build + boot under Renode
+make renode-debug      # build, boot under Renode, and attach GDB
 ```
 
-Run under Renode with:
+To flash the RTOS onto the real stm32 chip, override `RENODE_BOARD=stm32f103c8t6` to target the Blue Pill variant and use `HW=1` to bring up real HSE/PLL clocks (72MHz) instead of the default 8MHz HSI reset clock
 
-```sh
-make renode
+# Kernel 
+
+## Scheduler
+
+The kernel uses fixed priority preemptive scheduling. For same priority tasks, it implements time slicing with each systick. The kernel allows for 4 different priority levels, each with their own linked list for storing ready tasks.
+
+## Timeout Queue
+
+A global timeout queue is used to store tasks that are timed out, currently only used for storing tasks that voluntarily sleep or block with a timout. These tasks are sorted by their wake tick, and the head of the timeout queue is checked on each systick. 
+
+## Memory Pool
+
+This RTOS uses a static memory pool for deterministic runtime memory allocation. The memory pool is currently used for 2 implementations, one in kernel space to store kernel data structures (ex: Task TCBs which can be initalized at run time) and one for storing task stacks in user space.
+
+## Primitives
+
+Semaphores are implemented by tracking an arbitrary integer count, along with a task queue of waiters. Mutex's are implemented using an owner, a task queue of waiters, as well as a mutex pointer for the case of tracking multiple mutex's owned by a TCB.  
+
+## MPMC Queue (Blocking)
+
+A standard MPMC ring buffer queue was implemented. Internally, it makes use of a single mutex for ownership of the queue, a semaphore to represent the quantity of items to be consumed, and a semaphore for the quantity of free spaces that can be written to.
+
+## SPSC Queue (lockfree)
+
+A lockfree SPSC queue was implemented to learn about low latency lockfree datastructures. The queue is implemented using a head and tail pointer which atomically increment only after corresponding data has been written to or read from. In a single producer/consumer scenario, this ensures expected concurrent behavoir. The write function calls make use of release memory ordering while the read function calls use acquire memory ordering to ensure the CPU does not re-order instructions that could alter the expected queue values.
+
+## Memory Layout
+
+FLASH and RAM are each split in half between user and kernel regions, enforced by the MPU:
+
+```
+FLASH (512K, high-density STM32F103)      RAM (64K)
+0x00000000 ┌─────────────────┐            0x20000000 ┌─────────────────┐
+           │ FLASH_USER 256K │                        │ RAM_USER   32K  │
+           │ vectors, user   │                        │ .data/.bss,     │
+           │ text/rodata     │                        │ task stacks     │
+0x00040000 ├─────────────────┤            0x20008000  ├─────────────────┤
+           │ FLASH_KERNEL    │                        │ RAM_KERNEL 32K  │
+           │ 256K            │                        │ .data/.bss,     │
+           │ kernel text/    │                        │ kernel objects  │
+           │ rodata          │                        │                 │
+0x00080000 └─────────────────┘            0x20010000  └─────────────────┘
 ```
 
-Debug under Renode with `make renode-debug`, which starts Renode, waits
-for its GDB server to come up, and attaches `arm-none-eabi-gdb`
-automatically (port 3333, not 1234 -- Renode's own console monitor
-already uses 1234). If a previous session is still holding the port, it
-gets killed first.
+## Startup Script
+
+On reset, the initial data values are copied into RAM and the zero-initialized memory is cleared, for both the user and kernel regions. The kernel then sets up its memory pools and creates the idle task, before handing control to the application so it can register its own tasks. Once the application is done registering tasks, the kernel configures the MPU regions, brings up the system clock, and starts the periodic tick timer. It then switches into unprivileged thread mode and triggers the first context switch into a task, handing off control to the scheduler.
+
+## Benchmarking
+
+I've currently implemented a framework for benchmarking cycle counts using the DWT (Data Watch Trace) register, which is also supported with renode. I am working on implementing an interface for using RTT (Real Time Transfer) to test with the physical STM32 board.
