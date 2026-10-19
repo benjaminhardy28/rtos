@@ -17,3 +17,6 @@ void os_rtt_puts(const char *str); // wrapper for write()
 
 // Host -> target
 uint32_t os_rtt_read(char *data, uint32_t len);
+
+// helper for ints
+uint32_t u32_to_str(uint32_t value, char *out);

@@ -88,3 +88,23 @@ OS_USER_TEXT uint32_t os_rtt_read(char *data, uint32_t len) {
 
     return count;
 }
+
+/* Converts value to decimal ASCII in out, returns the digit count. */
+OS_USER_TEXT uint32_t u32_to_str(uint32_t value, char *out) {
+    char tmp[10];
+    uint32_t len = 0;
+    uint32_t i;
+
+    if (value == 0) {
+        out[0] = '0';
+        return 1;
+    }
+    while (value > 0) {
+        tmp[len++] = (char)('0' + (value % 10));
+        value /= 10;
+    }
+    for (i = 0; i < len; i++) {
+        out[i] = tmp[len - 1 - i];
+    }
+    return len;
+}

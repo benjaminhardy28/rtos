@@ -9,7 +9,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-OS_USER_DATA volatile uint32_t g_data = 0x11223344;
 OS_USER_BSS volatile uint32_t g_bss;
 
 OS_USER_BSS volatile uint32_t g_reached_main;
@@ -24,32 +23,12 @@ OS_USER_BSS volatile uint32_t g_last_sent;
 OS_USER_BSS volatile uint32_t g_last_recv;
 OS_USER_BSS volatile uint32_t g_error_count;
 
-/* Converts value to decimal ASCII in out, returns the digit count. */
-OS_USER_TEXT static uint32_t u32_to_str(uint32_t value, char *out) {
-    char tmp[10];
-    uint32_t len = 0;
-    uint32_t i;
-
-    if (value == 0) {
-        out[0] = '0';
-        return 1;
-    }
-    while (value > 0) {
-        tmp[len++] = (char)('0' + (value % 10));
-        value /= 10;
-    }
-    for (i = 0; i < len; i++) {
-        out[i] = tmp[len - 1 - i];
-    }
-    return len;
-}
-
 OS_USER_TEXT static void task0(void *arg) {
     uint32_t value = 1;
     uint32_t *slot;
 
     (void)arg;
-    os_delay_ticks(50);
+    //os_delay_ticks(50);
     for (;;) {
         g_last_sent = value;
 
@@ -64,9 +43,10 @@ OS_USER_TEXT static void task0(void *arg) {
             os_rtt_write(clock_buf, clock_len);
             g_task1_sent++;
             value++;
+            os_yield();
         }
 
-        os_delay_ticks(10);
+    //    os_delay_ticks(10);
     }
 }
 
@@ -96,9 +76,10 @@ OS_USER_TEXT static void task1(void *arg) {
             } else {
                 expected++;
             }
+            os_yield();
         }
 
-        os_delay_ticks(15);
+        //os_delay_ticks(15);
     }
 }
 

@@ -2,6 +2,8 @@
 #include "scheduler.h"
 #include "kalloc.h"
 #include "../include/os/syscall.h"
+#include "../include/os/rtt.h"
+#include "../include/os/bench.h"
 
 extern void os_port_pendsv_trigger(void);
 
@@ -167,10 +169,31 @@ OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to
 
 
 OS_USER_TEXT void os_yield(void) {
+  uint32_t now = os_bench_clock_now();
   (void)os_port_svc_call0(OS_SYSCALL_YIELD);
+
+  char clock_buf[10];
+  uint32_t clock_len = u32_to_str(now, clock_buf);
+  char addr_buff[10];
+  uint32_t task_addr_len = u32_to_str((uint32_t)g_current, addr_buff);
+  os_rtt_puts(" SVC Trap Start: ");
+  os_rtt_write(clock_buf, clock_len);
+  os_rtt_puts(" ");
+  os_rtt_write(addr_buff, task_addr_len);
 }
 
+
+
 OS_KERNEL_TEXT void os_kernel_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
+  uint32_t now = os_bench_clock_now();
+  char clock_buf[10];
+  uint32_t clock_len = u32_to_str(now, clock_buf);
+  char addr_buff[10];
+  uint32_t task_addr_len = u32_to_str((uint32_t)g_current, addr_buff);
+  os_rtt_puts(" SVC Trap End: ");
+  os_rtt_write(clock_buf, clock_len);
+  os_rtt_puts(" ");
+  os_rtt_write(addr_buff, task_addr_len);
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
   os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch

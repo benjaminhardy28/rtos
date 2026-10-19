@@ -7,6 +7,7 @@
 #include "../../kernel/tick.h"
 #include "../../include/os/queue.h"
 
+
 extern uint32_t __user_flash_region_start__;
 extern uint32_t __user_flash_region_end__;
 extern uint32_t __kernel_flash_region_start__;
@@ -19,6 +20,13 @@ extern uint32_t __kernel_ram_region_end__;
 extern os_tcb_t *os_current_tcb(void);
 extern void os_commit_switch(void);
 extern volatile uint32_t g_first_switch;
+
+// Set by os_port_mpu_init() once it confirms the MPU is present; read by
+// PendSV_Handler to decide task privilege. Chips without an MPU (DREGION
+// field reads 0) can't grant unprivileged code any PPB/DWT access at all,
+// so on those, tasks run privileged instead of losing memory protection
+// AND peripheral access for nothing.
+OS_KERNEL_BSS volatile uint32_t g_mpu_present;
 
 #define SCB_ICSR   (*(volatile uint32_t *)0xE000ED04u) // Interrupt Control and State Register
 #define SCB_SHCSR  (*(volatile uint32_t *)0xE000ED24u)
@@ -160,6 +168,7 @@ OS_KERNEL_TEXT void os_port_mpu_init(void) {
   os_port_mpu_region_configure(4u, DWT_PERIPH_REGION_BASE, DWT_PERIPH_REGION_SIZE, MPU_AP_RO_ALL | MPU_ATTR_DEVICE | MPU_RASR_XN);
 
   MPU_CTRL = MPU_CTRL_ENABLE | MPU_CTRL_PRIVDEFENA;
+  g_mpu_present = 1u;
 
   __asm volatile("dsb");
   __asm volatile("isb");
@@ -177,8 +186,9 @@ OS_KERNEL_TEXT __attribute__((naked)) void SVC_Handler(void) {
 
 // Entry trampoline for every task: r0 = arg, r1 = real entry point (set by
 // os_task_create_internal). Tail-jumps to entry() with lr = os_task_exit_trap, as if
-// entry() had been called directly; never touches CONTROL since PendSV_Handler already drops privilege before landing here.
-OS_USER_TEXT __attribute__((naked)) void os_task_start_trampoline(void) { // must be user-accessible flash: it runs unprivileged from its first instruction (PendSV_Handler always drops privilege before landing here)
+// entry() had been called directly; never touches CONTROL since PendSV_Handler already set
+// task privilege (unprivileged if an MPU is present, privileged otherwise) before landing here.
+OS_USER_TEXT __attribute__((naked)) void os_task_start_trampoline(void) { // must be user-accessible flash: PendSV_Handler sets its privilege level before landing here
   __asm volatile(
     "ldr r2, =os_task_exit_trap \n"
     "mov lr, r2                 \n"
@@ -212,7 +222,13 @@ OS_KERNEL_TEXT __attribute__((naked)) void PendSV_Handler(void) {
     "ldmia r0!, {r4-r11}    \n" // pop r4-r11, r0 = PSP to hw frame
     "msr psp, r0            \n" // PSP = next PSP
 
-    "movs r1, #3            \n" // thread mode, PSP, unprivileged -- every switch, including the first, drops privilege here directly
+    "ldr r2, =g_mpu_present \n" // r2 = &g_mpu_present
+    "ldr r2, [r2]           \n" // r2 = g_mpu_present
+    "movs r1, #2            \n" // thread mode, PSP, privileged (no MPU to grant PPB/DWT access otherwise)
+    "cmp r2, #0              \n"
+    "beq 3f                  \n"
+    "movs r1, #3            \n" // thread mode, PSP, unprivileged -- every switch, including the first, drops privilege here
+    "3:                      \n"
     "msr CONTROL, r1        \n"
     "isb                    \n"
 

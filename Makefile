@@ -62,6 +62,7 @@ SRCS := \
 	arch/arm_cm/startup.c \
 	arch/arm_cm/port.c \
 	kernel/main.c \
+	kernel/rtt.c \
 	$(APP_SRC) \
 	benchmark/bench_clock.c \
 	kernel/tick.c \
@@ -74,7 +75,6 @@ SRCS := \
 	kernel/queue.c \
 	kernel/lfqueue.c \
 	kernel/kalloc.c \
-	kernel/rtt.c \
 	$(BSP_SRC)
 
 OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
@@ -185,6 +185,7 @@ debug-pi: check-pi
 # scripts/openocd/stm32f103c8t6_rtt.cfg), listening on port 9090.
 .PHONY: view-rtt
 view-rtt:
+	ssh -o ClearAllForwardings=yes debugpi "echo -e 'rtt stop\rrtt start\r' | nc -q1 localhost 4444"
 	@nc -z localhost 9090 || { echo "Nothing on localhost:9090, check OpenOCD is running the RTT cfg on the pi and the tunnel forwards port 9090"; exit 1; }
 	nc localhost 9090
 
