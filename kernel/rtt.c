@@ -3,7 +3,7 @@
 #include "../arch/arm_cm/port.h"
 #include <stdint.h>
 
-// From-scratch reimplementation of SEGGER's RTT control block
+// From scratch reimplementation of SEGGER's RTT control block
 // OpenOCD polls SRAM for the 16-byte "SEGGER RTT" id below, then parses the data below and reads from buffer
 
 #define OS_RTT_MODE_NO_BLOCK_SKIP 1u
@@ -62,6 +62,7 @@ OS_USER_TEXT void os_rtt_write(const char *data, uint32_t len) {
     os_port_irq_restore(primask);
 }
 
+// wrapper function to not have to pass in length
 OS_USER_TEXT void os_rtt_puts(const char *str) {
     uint32_t len = 0u;
 
@@ -71,6 +72,7 @@ OS_USER_TEXT void os_rtt_puts(const char *str) {
     os_rtt_write(str, len);
 }
 
+// read data sent to MCU
 OS_USER_TEXT uint32_t os_rtt_read(char *data, uint32_t len) {
     volatile os_rtt_channel_t *ch = &g_rtt_cb.down[0];
     uint32_t primask;

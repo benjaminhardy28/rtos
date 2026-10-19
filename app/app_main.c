@@ -1,6 +1,8 @@
 
 #include "../include/os/app.h"
+#include "../include/os/bench.h"
 #include "../include/os/lfqueue.h"
+#include "../include/os/rtt.h"
 #include "../include/os/task.h"
 #include "../include/os/tick.h"
 #include "../include/os/section.h"
@@ -22,6 +24,26 @@ OS_USER_BSS volatile uint32_t g_last_sent;
 OS_USER_BSS volatile uint32_t g_last_recv;
 OS_USER_BSS volatile uint32_t g_error_count;
 
+/* Converts value to decimal ASCII in out, returns the digit count. */
+OS_USER_TEXT static uint32_t u32_to_str(uint32_t value, char *out) {
+    char tmp[10];
+    uint32_t len = 0;
+    uint32_t i;
+
+    if (value == 0) {
+        out[0] = '0';
+        return 1;
+    }
+    while (value > 0) {
+        tmp[len++] = (char)('0' + (value % 10));
+        value /= 10;
+    }
+    for (i = 0; i < len; i++) {
+        out[i] = tmp[len - 1 - i];
+    }
+    return len;
+}
+
 OS_USER_TEXT static void task0(void *arg) {
     uint32_t value = 1;
     uint32_t *slot;
@@ -35,6 +57,11 @@ OS_USER_TEXT static void task0(void *arg) {
         if (slot != NULL) {
             *slot = value;
             (void)update_write_index(&g_queue);
+            uint32_t now = os_bench_clock_now();
+            char clock_buf[10];
+            uint32_t clock_len = u32_to_str(now, clock_buf);
+            os_rtt_puts("Sent: ");
+            os_rtt_write(clock_buf, clock_len);
             g_task1_sent++;
             value++;
         }
@@ -55,6 +82,11 @@ OS_USER_TEXT static void task1(void *arg) {
         if (slot != NULL) {
             value = *slot;
             (void)update_read_index(&g_queue);
+            uint32_t now = os_bench_clock_now();
+            char clock_buf[10];
+            uint32_t clock_len = u32_to_str(now, clock_buf);
+            os_rtt_puts("Received: ");
+            os_rtt_write(clock_buf, clock_len);
             g_last_recv = value;
             g_task2_recv++;
 

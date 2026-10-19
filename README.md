@@ -5,12 +5,12 @@ This is a project that I have been working on during my free time to gain a deep
 ## Getting Started
 
 ```sh
-make build            # builds build/rtos.elf for stm32f103
+make build            # builds build/rtos.elf for the real Blue Pill (stm32f103c8t6)
 make renode            # build + boot under Renode
 make renode-debug      # build, boot under Renode, and attach GDB
 ```
 
-To flash the RTOS onto the real stm32 chip, override `RENODE_BOARD=stm32f103c8t6` to target the Blue Pill variant and use `HW=1` to bring up real HSE/PLL clocks (72MHz) instead of the default 8MHz HSI reset clock
+Use `HW=1` to bring up real HSE/PLL clocks (72MHz) instead of the default 8MHz HSI reset clock when flashing real hardware. To build/debug the high-density variant under Renode instead, override `BOARD=stm32f103`.
 
 # Kernel 
 

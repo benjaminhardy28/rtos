@@ -9,41 +9,43 @@ RENODE  := renode
 # -------- Target --------
 CPU   := cortex-m3
 
-# Board to build/debug under Renode. stm32f103 is the main target board;
-# override with RENODE_BOARD=stm32f103c8t6 for the "Blue Pill" (64K flash /
-# 20K RAM) variant.
-RENODE_BOARD ?= stm32f103
+# Board to build/debug/flash. stm32f103c8t6 is the real Blue Pill
+# hardware; override with BOARD=stm32f103 for the Renode-only high-density
+# variant.
+BOARD ?= stm32f103c8t6
 
 # -------- Paths --------
 BUILD_DIR := build
 ELF       := $(BUILD_DIR)/rtos.elf
 APP_SRC   ?= app/app_main.c
 
-ifeq ($(RENODE_BOARD),stm32f103)
+ifeq ($(BOARD),stm32f103)
 LD_SCRIPT            := linker/stm32f103.ld
 BSP_SRC               := bsp/stm32f103/systick.c
 RENODE_RUN_SCRIPT     := scripts/renode/stm32f103_run.resc
 RENODE_DEBUG_SCRIPT   := scripts/renode/stm32f103_debug.resc
-else ifeq ($(RENODE_BOARD),stm32f103c8t6)
+else ifeq ($(BOARD),stm32f103c8t6)
 LD_SCRIPT            := linker/stm32f103c8t6.ld
 BSP_SRC               := bsp/stm32f103/systick.c
 RENODE_RUN_SCRIPT     := scripts/renode/stm32f103c8t6_run.resc
 RENODE_DEBUG_SCRIPT   := scripts/renode/stm32f103c8t6_debug.resc
 else
-$(error Unknown RENODE_BOARD '$(RENODE_BOARD)' -- expected stm32f103 or stm32f103c8t6)
+$(error Unknown BOARD '$(BOARD)' -- expected stm32f103 or stm32f103c8t6)
 endif
 
-# -------- Real hardware clock bring-up (opt-in) --------
-# HW=0 (default): boots on the reset-default 8MHz HSI, never touches RCC.
-# Required for Renode -- its platform files (scripts/renode/*.repl) don't
-# model RCC, so an HSERDY/PLLRDY poll there spins forever. Renode's own
-# SysTick/DWT frequency is fixed at 25MHz regardless of real RCC state
-# (see scripts/renode/*.repl), which is what OS_CPU_HZ tracks below.
+# -------- Real hardware clock bring-up --------
+# HW=1 (default): compiles in bsp/stm32f103/clock.c and runs real
+# HSE+PLL bring-up to 72MHz before the scheduler starts ticking --
+# correct for the real Blue Pill, which is the default BOARD.
 #
-# HW=1: compiles in bsp/stm32f103/clock.c and runs real HSE+PLL bring-up
-# to 72MHz before the scheduler starts ticking. Only meaningful when
-# flashing real silicon -- e.g. `make build RENODE_BOARD=stm32f103c8t6 HW=1`.
-HW ?= 0
+# HW=0: boots on the reset-default 8MHz HSI. Forced regardless of any
+# override when BOARD=stm32f103 (Renode-only) -- Renode's platform
+# files don't model RCC, so an HSERDY/PLLRDY poll there spins forever.
+HW ?= 1
+ifeq ($(BOARD),stm32f103)
+override HW := 0
+endif
+
 ifeq ($(HW),1)
 BSP_SRC += bsp/stm32f103/clock.c
 CFLAGS  += -DOS_HW_CLOCK_INIT -DOS_CPU_HZ=72000000u
@@ -80,15 +82,8 @@ OBJS := $(SRCS:%.c=$(BUILD_DIR)/%.o)
 .PHONY: build check-board bench-sched renode renode-debug debug sections segments symbols disasm clean
 
 # ---------- Build ----------
-# build/rtos.elf's path doesn't vary by RENODE_BOARD, APP_SRC, or HW, but
-# its actual link inputs (LD_SCRIPT, BSP_SRC, APP_SRC, CFLAGS) do -- make
-# can't detect a Makefile *variable* changing between invocations via
-# mtimes alone, so switching any of them without this would silently
-# relink against stale objects from whichever combination was last built.
-# This tracks the last-built (board, app, hw) triple and wipes the build
-# dir if it changed.
 BOARD_MARKER := $(BUILD_DIR)/.board_marker
-BUILD_ID := $(RENODE_BOARD)|$(APP_SRC)|$(HW)
+BUILD_ID := $(BOARD)|$(APP_SRC)|$(HW)
 
 check-board:
 	mkdir -p $(BUILD_DIR)
@@ -118,14 +113,7 @@ RENODE_GDB_PORT := 3333
 RENODE_LOG      := $(BUILD_DIR)/renode.log
 
 # Starts Renode in the background (log at $(RENODE_LOG)), waits for its GDB
-# server to come up, attaches gdb, then kills Renode when gdb exits. If a
-# Renode session from a previous run is still holding the GDB port (its
-# cleanup only fires on a clean gdb exit, not on Ctrl-C), kill it first.
-#
-# Deliberately does NOT depend on `build` -- it debugs whatever ELF was
-# last built, instead of silently rebuilding (and possibly wiping/relinking
-# against a different RENODE_BOARD/APP_SRC than you meant to debug, see
-# check-board) every time you attach. Run `make build` yourself first.
+# server to come up, attaches gdb, then kills Renode when gdb exits. 
 renode-debug:
 	if [ ! -f $(ELF) ]; then \
 		echo "$(ELF) not found -- run 'make build' first" >&2; \
@@ -168,3 +156,45 @@ disasm: build
 # ---------- Cleanup ----------
 clean:
 	rm -rf $(BUILD_DIR)
+
+flash:
+	STM32_Programmer_CLI -c port=SWD -w build/rtos.elf -rst
+
+# Commands for interacting with board from remote Raspberry Pi
+
+.PHONY: check-pi
+check-pi:
+	@test -f build/rtos.elf || { echo "build/rtos.elf not found, run 'make' first"; exit 1; }
+	@nc -z localhost 3333 || { echo "Nothing on localhost:3333, start the tunnel: ssh -N debugpi"; exit 1; }
+
+.PHONY: flash-pi
+flash-pi: check-pi
+	@ls -l build/rtos.elf
+	arm-none-eabi-gdb -batch build/rtos.elf \
+		-ex "target extended-remote localhost:3333" \
+		-ex "monitor reset halt" \
+		-ex "load" \
+		-ex "monitor reset run" \
+		-ex "detach"
+
+.PHONY: debug-pi
+debug-pi: check-pi
+	arm-none-eabi-gdb build/rtos.elf -ex "target extended-remote localhost:3333"
+
+# openocd.service on the pi runs with RTT always enabled (see
+# scripts/openocd/stm32f103c8t6_rtt.cfg), listening on port 9090.
+.PHONY: view-rtt
+view-rtt:
+	@nc -z localhost 9090 || { echo "Nothing on localhost:9090, check OpenOCD is running the RTT cfg on the pi and the tunnel forwards port 9090"; exit 1; }
+	nc localhost 9090
+
+# OpenOCD's background RTT poller and an active debug-pi session can race
+# over the SWD adapter and wedge the RTT bridge (connections on 9090
+# accepted then dropped with zero bytes) -- this flushes it via OpenOCD's
+# telnet console. ClearAllForwardings avoids clashing with an already-open
+# `ssh -N debugpi` tunnel holding the same LocalForward ports.
+.PHONY: restart-rtt-pi
+restart-rtt-pi:
+	ssh -o ClearAllForwardings=yes debugpi "echo -e 'rtt stop\rrtt start\r' | nc -q1 localhost 4444"
+
+
