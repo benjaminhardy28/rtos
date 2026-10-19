@@ -2,7 +2,6 @@
 #include "../include/os/app.h"
 #include "../include/os/task.h"
 #include "../include/os/mutex.h"
-#include "../include/os/section.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -12,17 +11,17 @@
 
 #define PI_BUSY_ITERS 50000u
 
-OS_USER_BSS volatile uint32_t g_reached_main;
+volatile uint32_t g_reached_main;
 
-OS_USER_BSS static os_mutex_t g_pi_mutex;
+static os_mutex_t g_pi_mutex;
 
 /* Debug globals -- watch these in GDB/Renode */
-OS_USER_BSS volatile uint32_t g_pi_low_locked;    /* L took the mutex uncontended */
-OS_USER_BSS volatile uint32_t g_pi_low_done;      /* L finished its critical section and unlocked */
-OS_USER_BSS volatile uint32_t g_pi_medium_spins;  /* heartbeat: how far M's hog loop got */
-OS_USER_BSS volatile uint32_t g_pi_high_acquired; /* H got the mutex -- the thing we're checking */
+volatile uint32_t g_pi_low_locked;    /* L took the mutex uncontended */
+volatile uint32_t g_pi_low_done;      /* L finished its critical section and unlocked */
+volatile uint32_t g_pi_medium_spins;  /* heartbeat: how far M's hog loop got */
+volatile uint32_t g_pi_high_acquired; /* H got the mutex -- the thing we're checking */
 
-OS_USER_TEXT static void pi_high_task(void *arg) {
+static void pi_high_task(void *arg) {
     (void)arg;
 
     (void)os_mutex_lock(&g_pi_mutex); /* blocks until L unlocks; should be prompt if PI works */
@@ -33,7 +32,7 @@ OS_USER_TEXT static void pi_high_task(void *arg) {
     }
 }
 
-OS_USER_TEXT static void pi_medium_task(void *arg) {
+static void pi_medium_task(void *arg) {
     (void)arg;
 
     /* Pure CPU hog: never blocks, never yields. This is the task that
@@ -43,7 +42,7 @@ OS_USER_TEXT static void pi_medium_task(void *arg) {
     }
 }
 
-OS_USER_TEXT static void pi_low_task(void *arg) {
+static void pi_low_task(void *arg) {
     volatile uint32_t i;
 
     (void)arg;
@@ -68,7 +67,7 @@ OS_USER_TEXT static void pi_low_task(void *arg) {
     }
 }
 
-OS_USER_TEXT void os_app_main(void) {
+void os_app_main(void) {
     g_reached_main = 0xA5A5A5A5;
 
     os_mutex_init(&g_pi_mutex);

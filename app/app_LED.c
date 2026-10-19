@@ -3,7 +3,6 @@
 #include "../include/os/mutex.h"
 #include "../include/os/task.h"
 #include "../include/os/tick.h"
-#include "../include/os/section.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -27,10 +26,10 @@
 #define GPIOA_CRH_PIN12_MASK (0xFu << 16)
 #define GPIOA_CRH_PIN12_OUT  (0x2u << 16)
 
-OS_USER_BSS static os_mutex_t g_led_mutex;
+static os_mutex_t g_led_mutex;
 
-OS_USER_BSS volatile uint32_t g_task0_blinks;
-OS_USER_BSS volatile uint32_t g_task1_blinks;
+volatile uint32_t g_task0_blinks;
+volatile uint32_t g_task1_blinks;
 
 static void led_gpio_init(void)
 {
@@ -50,7 +49,7 @@ static void led_off(uint32_t pin)
     GPIOA_BSRR = pin << 16; // upper half of BSRR resets the pin
 }
 
-OS_USER_TEXT static void task0(void *arg) {
+static void task0(void *arg) {
     (void)arg;
 
     for (;;) {
@@ -65,7 +64,7 @@ OS_USER_TEXT static void task0(void *arg) {
     }
 }
 
-OS_USER_TEXT static void task1(void *arg) {
+static void task1(void *arg) {
     (void)arg;
 
     for (;;) {
@@ -80,7 +79,7 @@ OS_USER_TEXT static void task1(void *arg) {
     }
 }
 
-OS_USER_TEXT void os_app_main(void)
+void os_app_main(void)
 {
     led_gpio_init();
     os_mutex_init(&g_led_mutex);

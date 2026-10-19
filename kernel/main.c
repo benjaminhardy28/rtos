@@ -4,22 +4,19 @@
 #include "../include/os/bench.h"
 #include <stdint.h>
 
-// Runs like any other task -- dispatched unprivileged through the same trampoline as user
-// tasks (see os_task_start_trampoline in arch/arm_cm/port.c) -- so it must live in
-// user-accessible flash; OS_KERNEL_TEXT faulted the scheduler's first (idle task) switch.
-OS_USER_TEXT static void os_idle_task(void *arg) {
+// Runs like any other task -- dispatched through the same trampoline as other
+// tasks (see os_task_start_trampoline in arch/arm_cm/port.c).
+static void os_idle_task(void *arg) {
     (void)arg;
     for (;;) {
     }
 }
 
-OS_KERNEL_TEXT void os_boot_main(void)
+void os_boot_main(void)
 {
   os_kalloc_init(); // Allocate memory regions for kernel objects and task stacks
 
-  // Gates DWT's bus interface (DEMCR.TRCENA) -- must run here, privileged,
-  // since app code's DWT MPU region is read-only.
-  os_bench_clock_init();
+  os_bench_clock_init(); // Gates DWT's bus interface (DEMCR.TRCENA)
 
   // Create IDLE task so there is always a task for the scheduler to choose
   os_task_create(OS_TASK_IDLE, os_idle_task, NULL, 128);

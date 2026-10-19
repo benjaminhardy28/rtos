@@ -7,11 +7,11 @@ typedef struct os_mempool_node_t {
   struct os_mempool_node_t *next;
 } os_mempool_node_t;
 
-OS_KERNEL_TEXT uint32_t os_mempool_align_up(uint32_t value, uint32_t align) {
+uint32_t os_mempool_align_up(uint32_t value, uint32_t align) {
   return (value + (align - 1u)) & ~(align - 1u);
 }
 
-OS_KERNEL_TEXT void os_mempool_init(os_mempool_t *pool,  void *buffer, uint32_t block_size, uint32_t block_count){
+void os_mempool_init(os_mempool_t *pool,  void *buffer, uint32_t block_size, uint32_t block_count){
     uint32_t i;
     uint8_t *base;
     os_mempool_node_t *node;
@@ -36,7 +36,7 @@ OS_KERNEL_TEXT void os_mempool_init(os_mempool_t *pool,  void *buffer, uint32_t 
     }
 }
 
-OS_KERNEL_TEXT void *os_mempool_alloc(os_mempool_t *pool){
+void *os_mempool_alloc(os_mempool_t *pool){
     uint32_t primask;
     os_mempool_node_t *node;
 
@@ -56,7 +56,7 @@ OS_KERNEL_TEXT void *os_mempool_alloc(os_mempool_t *pool){
     return (void*)node;
 }
 
-OS_KERNEL_TEXT int os_mempool_free(os_mempool_t *pool, void *ptr){
+int os_mempool_free(os_mempool_t *pool, void *ptr){
     uint32_t primask;
     uintptr_t offset;
     os_mempool_node_t *node;

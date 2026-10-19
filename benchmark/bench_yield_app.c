@@ -3,16 +3,14 @@
 #include "../include/os/task.h"
 #include <stdint.h>
 
-// Debug variables to watch -- OS_USER_BSS since worker_task/pinger_task run unprivileged;
-// without it these fall into the linker script's .bss.kernel catch-all (privileged-only
-// RAM) and fault the instant an unprivileged task touches them.
-OS_USER_BSS volatile uint32_t g_yield_start_cycle;
-OS_USER_BSS volatile uint32_t g_yield_end_cycle;
-OS_USER_BSS volatile uint32_t g_yield_latency_cycles;
-OS_USER_BSS volatile uint32_t g_worker_ready;
-OS_USER_BSS volatile uint32_t g_ping;
+// Debug variables to watch
+volatile uint32_t g_yield_start_cycle;
+volatile uint32_t g_yield_end_cycle;
+volatile uint32_t g_yield_latency_cycles;
+volatile uint32_t g_worker_ready;
+volatile uint32_t g_ping;
 
-OS_USER_TEXT static void worker_task(void *arg)
+static void worker_task(void *arg)
 {
     (void)arg;
     g_worker_ready = 1u;
@@ -29,7 +27,7 @@ OS_USER_TEXT static void worker_task(void *arg)
 }
 
 
-OS_USER_TEXT static void pinger_task(void *arg)
+static void pinger_task(void *arg)
 {
     (void)arg;
 
@@ -47,7 +45,7 @@ OS_USER_TEXT static void pinger_task(void *arg)
     }
 }
 
-OS_USER_TEXT void os_app_main(void)
+void os_app_main(void)
 {
     os_bench_clock_init();
 

@@ -1,22 +1,19 @@
 #include "task.h"
 #include "scheduler.h"
 #include "kalloc.h"
-#include "../include/os/syscall.h"
-#include "../include/os/rtt.h"
-#include "../include/os/bench.h"
 
 extern void os_port_pendsv_trigger(void);
 
-OS_KERNEL_BSS uint32_t volatile g_first_switch;
+uint32_t volatile g_first_switch;
 
-OS_KERNEL_BSS os_tcb_t *g_current = NULL;
-OS_KERNEL_BSS os_tcb_t *g_next = NULL;
+os_tcb_t *g_current = NULL;
+os_tcb_t *g_next = NULL;
 
 // temp
 
-OS_USER_BSS volatile uint32_t g_debug_step;
-OS_USER_BSS volatile uint32_t g_debug_value0;
-OS_USER_BSS volatile uint32_t g_debug_value1;
+volatile uint32_t g_debug_step;
+volatile uint32_t g_debug_value0;
+volatile uint32_t g_debug_value1;
 
 extern void os_task_start_trampoline(void); // arch/arm_cm/port.c
 
@@ -24,22 +21,61 @@ extern void os_task_start_trampoline(void); // arch/arm_cm/port.c
 extern void clock_init(void); // bsp/stm32f103/clock.c -- real hardware only, see Makefile HW=1
 #endif
 
-OS_USER_TEXT void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return); user-accessible flash since a task running unprivileged needs fetch permission for it; not static so arch/arm_cm/port.c's trampoline can set it as lr
+void os_task_exit_trap(void) { // called when a task function returns (this is a backup, since it shouldn't ever return); not static so arch/arm_cm/port.c's trampoline can set it as lr
   for (;;) {}
 }
 
-OS_USER_TEXT int os_task_create(os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t stack_words) {
-  os_task_create_args_t syscall_args = {
-    .priority = priority,
-    .entry = entry,
-    .arg = arg,
-    .stack_words = stack_words,
-  };
+int os_task_create(os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t stack_words) {
+  os_tcb_t *tcb;
+  uint32_t *stack_mem;
+  uint32_t primask;
+  int ret;
 
-  return (int)os_port_svc_call1(OS_SYSCALL_TASK_CREATE, (uint32_t)(uintptr_t)&syscall_args);
+  if (entry == NULL) {
+    return -1;
+  }
+
+  if ((uint32_t)priority > (uint32_t)OS_TASK_IDLE) {
+    return -1;
+  }
+
+  g_debug_step = 1;
+  tcb = (os_tcb_t *)os_kobj_alloc((uint32_t)sizeof(os_tcb_t));
+  if (tcb == NULL) {
+    return -1;
+  }
+
+  g_debug_step = 2;
+  g_debug_value0 = (uint32_t)(uintptr_t)tcb;
+
+  stack_mem = os_kstack_alloc(stack_words);
+  if (stack_mem == NULL) {
+    os_kobj_free(tcb);
+    return -1;
+  }
+
+  g_debug_step = 3;
+  g_debug_value1 = (uint32_t)(uintptr_t)stack_mem;
+
+  ret = os_task_create_internal(tcb, priority, entry, arg, stack_mem, stack_words);
+  if (ret != 0) {
+    os_kstack_free(stack_mem);
+    os_kobj_free(tcb);
+    return ret;
+  }
+
+  primask = os_port_irq_save();
+  os_ready_queue_add(tcb);
+  os_schedule();
+  if (g_current != NULL && g_next != g_current) {
+    os_port_pendsv_trigger();
+  }
+  os_port_irq_restore(primask);
+
+  return 0;
 }
 
-OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
+int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words) {
   uint32_t *sp = stack_mem + stack_words;
 
   sp = (uint32_t *)((uintptr_t)sp & ~((uintptr_t)0x7)); // align to 8 bytes
@@ -84,60 +120,8 @@ OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t pri
   return 0;
 }
 
-OS_KERNEL_TEXT int os_kernel_task_create(const os_task_create_args_t *args) {
-  os_tcb_t *tcb;
-  uint32_t *stack_mem;
-  uint32_t primask;
-  int ret;
-
-  if (args == NULL || args->entry == NULL) {
-    return -1;
-  }
-
-  if ((uint32_t)args->priority > (uint32_t)OS_TASK_IDLE) {
-    return -1;
-  }
-
-  g_debug_step = 1;
-  tcb = (os_tcb_t *)os_kobj_alloc((uint32_t)sizeof(os_tcb_t));
-  if (tcb == NULL) {
-    return -1;
-  }
-
-  g_debug_step = 2;
-  g_debug_value0 = (uint32_t)(uintptr_t)tcb;
-
-  stack_mem = os_kstack_alloc(args->stack_words);
-  if (stack_mem == NULL) {
-    os_kobj_free(tcb);
-    return -1;
-  }
-
-  g_debug_step = 3;
-  g_debug_value1 = (uint32_t)(uintptr_t)stack_mem;
-
-
-  ret = os_task_create_internal(tcb, args->priority, args->entry, args->arg, stack_mem, args->stack_words);
-  if (ret != 0) {
-    os_kstack_free(stack_mem);
-    os_kobj_free(tcb);
-    return ret;
-  }
-
-  primask = os_port_irq_save();
-  os_ready_queue_add(tcb);
-  os_schedule();
-  if (g_current != NULL && g_next != g_current) {
-    os_port_pendsv_trigger();
-  }
-  os_port_irq_restore(primask);
-
-  return 0;
-}
-
-OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to run
+void os_start(void) { // start the scheduler, picks first task to run
   os_port_set_pendsv_priority_lowest(); // ensure PendSV is lowest priority
-  os_port_mpu_init(); // initialize MPU to set memory permissions for user/kernel regions
   g_first_switch = 1;
 
 #ifdef OS_HW_CLOCK_INIT
@@ -168,32 +152,7 @@ OS_KERNEL_TEXT void os_start(void) { // start the scheduler, picks first task to
 }
 
 
-OS_USER_TEXT void os_yield(void) {
-  uint32_t now = os_bench_clock_now();
-  (void)os_port_svc_call0(OS_SYSCALL_YIELD);
-
-  char clock_buf[10];
-  uint32_t clock_len = u32_to_str(now, clock_buf);
-  char addr_buff[10];
-  uint32_t task_addr_len = u32_to_str((uint32_t)g_current, addr_buff);
-  os_rtt_puts(" SVC Trap Start: ");
-  os_rtt_write(clock_buf, clock_len);
-  os_rtt_puts(" ");
-  os_rtt_write(addr_buff, task_addr_len);
-}
-
-
-
-OS_KERNEL_TEXT void os_kernel_yield(void) { // cooperative yield: asks kernel to switch away from current task. Picks task then triggers PendSV
-  uint32_t now = os_bench_clock_now();
-  char clock_buf[10];
-  uint32_t clock_len = u32_to_str(now, clock_buf);
-  char addr_buff[10];
-  uint32_t task_addr_len = u32_to_str((uint32_t)g_current, addr_buff);
-  os_rtt_puts(" SVC Trap End: ");
-  os_rtt_write(clock_buf, clock_len);
-  os_rtt_puts(" ");
-  os_rtt_write(addr_buff, task_addr_len);
+void os_yield(void) { // cooperative yield: switches away from current task. Picks next task then triggers PendSV
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
   os_schedule(); // pick next task
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch

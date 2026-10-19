@@ -3,18 +3,18 @@
 
 #define NUM_PRIORITIES 4
 
-OS_KERNEL_BSS static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
-OS_KERNEL_BSS static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
+static os_task_queue_t g_priorities[NUM_PRIORITIES]; // array of ready queue heads for each priority level
+static os_task_queue_t g_timeout_queue; // blocked tasks ordered by soonest timeout
 
 // Generic task queue functions, used by ready queue and wait queue functions
 
-OS_KERNEL_TEXT void os_task_queue_init(os_task_queue_t *queue) {
+void os_task_queue_init(os_task_queue_t *queue) {
     if (!queue) return;
     queue->head = NULL;
     queue->tail = NULL;
 }
 
-OS_KERNEL_TEXT os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
+os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
     // Pops the head of the queue and returns it, or returns NULL if the queue is empty
     if (queue->head) {
         os_tcb_t *prev_head = queue->head;
@@ -24,14 +24,14 @@ OS_KERNEL_TEXT os_tcb_t *os_task_queue_pop_head(os_task_queue_t *queue) {
     return NULL; // no ready tasks found
 }
 
-OS_KERNEL_TEXT os_tcb_t *os_task_queue_peek_head(os_task_queue_t *queue){
+os_tcb_t *os_task_queue_peek_head(os_task_queue_t *queue){
     if (queue->head) {
         return queue->head;
     }
     return NULL; // no ready tasks found
 }
 
-OS_KERNEL_TEXT void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
+void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
     if (!queue || !tcb) return;
     tcb->next = NULL;
     tcb->prev = queue->tail;
@@ -43,7 +43,7 @@ OS_KERNEL_TEXT void os_task_queue_add(os_task_queue_t *queue, os_tcb_t *tcb){
     queue->tail = tcb;
 }
 
-OS_KERNEL_TEXT void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
+void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
     if (!queue || !tcb) return;
     if(tcb->prev) {
         tcb->prev->next = tcb->next;
@@ -59,7 +59,7 @@ OS_KERNEL_TEXT void os_task_queue_remove(os_task_queue_t *queue, os_tcb_t *tcb){
     tcb->prev = NULL;
 }
 
-OS_KERNEL_TEXT void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_tcb_t *tcb) {
+void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_tcb_t *tcb) {
     if (!queue || !tcb) return;
 
     tcb->next = NULL;
@@ -97,7 +97,7 @@ OS_KERNEL_TEXT void os_task_queue_insert_by_priority(os_task_queue_t *queue, os_
 
 // Ready queue functions, call the generic queue functions with the appropriate priority queue
 
-OS_KERNEL_TEXT void os_ready_queue_rotate(os_tcb_t *tcb){
+void os_ready_queue_rotate(os_tcb_t *tcb){
     if (!tcb) return;
     os_task_queue_t *queue = &g_priorities[tcb->priority];
     if (queue->head != tcb || tcb->next == NULL) {
@@ -116,15 +116,15 @@ OS_KERNEL_TEXT void os_ready_queue_rotate(os_tcb_t *tcb){
     queue->tail = tcb;
 }
 
-OS_KERNEL_TEXT void os_ready_queue_add(os_tcb_t *tcb){
+void os_ready_queue_add(os_tcb_t *tcb){
     os_task_queue_add(&g_priorities[tcb->priority], tcb);
 }
 
-OS_KERNEL_TEXT void os_ready_queue_remove(os_tcb_t *tcb){
+void os_ready_queue_remove(os_tcb_t *tcb){
     os_task_queue_remove(&g_priorities[tcb->priority], tcb);
 }
 
-OS_KERNEL_TEXT void os_schedule(void){
+void os_schedule(void){
     for (uint8_t p = 0; p < NUM_PRIORITIES; p++) {
         g_next = os_task_queue_peek_head(&g_priorities[p]);
         if (g_next != NULL) {
@@ -136,11 +136,11 @@ OS_KERNEL_TEXT void os_schedule(void){
 
 // Timeout queue functions
 
-OS_KERNEL_TEXT static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
+static int os_tick_reached(uint32_t now, uint32_t wake_tick) {
     return (int32_t)(now - wake_tick) >= 0;
 }
 
-OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
+static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
     os_tcb_t *iter;
 
     if (!tcb) {
@@ -182,7 +182,7 @@ OS_KERNEL_TEXT static void os_timeout_queue_insert_sorted(os_tcb_t *tcb) {
     iter->timeout_prev = tcb;
 }
 
-OS_KERNEL_TEXT static void os_timeout_queue_remove(os_tcb_t *tcb) {
+static void os_timeout_queue_remove(os_tcb_t *tcb) {
     if (!tcb) {
         return;
     }
@@ -203,7 +203,7 @@ OS_KERNEL_TEXT static void os_timeout_queue_remove(os_tcb_t *tcb) {
     tcb->timeout_prev = NULL;
 }
 
-OS_KERNEL_TEXT void os_process_timeouts(void) {
+void os_process_timeouts(void) {
     os_tcb_t *tcb;
     uint32_t now;
 
@@ -234,7 +234,7 @@ OS_KERNEL_TEXT void os_process_timeouts(void) {
 
 // Wait queue functions
 
-OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks, bool priority_ordered)
+void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t timeout_ticks, bool priority_ordered)
 {
     os_tcb_t *current;
 
@@ -271,7 +271,7 @@ OS_KERNEL_TEXT void os_task_block_locked(os_task_queue_t *wait_queue, uint32_t t
 }
 
 
-OS_KERNEL_TEXT os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
+os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
     os_tcb_t *tcb;
 
     if (!wait_queue) {
@@ -295,7 +295,7 @@ OS_KERNEL_TEXT os_tcb_t *os_task_wake_one_locked(os_task_queue_t *wait_queue) {
 
 // Task priority functions - touches both the ready queue and priority-ordered wait queues
 
-OS_KERNEL_TEXT void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority) {
+void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_priority) {
     if (!tcb || new_priority > OS_TASK_IDLE) return;
 
     // Update the tasks prority
@@ -314,7 +314,7 @@ OS_KERNEL_TEXT void os_task_set_priority(os_tcb_t *tcb, os_task_priority_t new_p
     }
 }
 
-OS_KERNEL_TEXT void os_commit_switch(void) {
+void os_commit_switch(void) {
     os_tcb_t *prev = g_current;
 
     if (g_next == NULL) {
@@ -330,10 +330,10 @@ OS_KERNEL_TEXT void os_commit_switch(void) {
 }
 
 
-OS_KERNEL_TEXT os_tcb_t *os_current_tcb(void){
+os_tcb_t *os_current_tcb(void){
     return g_current;
 }
 
-OS_KERNEL_TEXT os_tcb_t *os_next_tcb(void) {
+os_tcb_t *os_next_tcb(void) {
     return g_next ? g_next : g_current;
 }

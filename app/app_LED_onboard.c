@@ -2,7 +2,6 @@
 #include "../include/os/app.h"
 #include "../include/os/task.h"
 #include "../include/os/tick.h"
-#include "../include/os/section.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,7 +23,7 @@
 #define GPIOC_CRH_PIN13_MASK (0xFu << 20)
 #define GPIOC_CRH_PIN13_OUT  (0x2u << 20)
 
-OS_USER_BSS volatile uint32_t g_blink_count;
+volatile uint32_t g_blink_count;
 
 static void led_gpio_init(void)
 {
@@ -43,7 +42,7 @@ static void led_off(void)
     GPIOC_BSRR = GPIOC_PIN13; // set half of BSRR turns it off
 }
 
-OS_USER_TEXT static void task0(void *arg) {
+static void task0(void *arg) {
     (void)arg;
 
     for (;;) {
@@ -56,7 +55,7 @@ OS_USER_TEXT static void task0(void *arg) {
     }
 }
 
-OS_USER_TEXT void os_app_main(void)
+void os_app_main(void)
 {
     led_gpio_init();
 

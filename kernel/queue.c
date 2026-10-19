@@ -2,7 +2,7 @@
 #include "memory.h"
 #include <stddef.h>
 
-OS_USER_TEXT int os_queue_init(os_queue_t *queue, void *storage, uint32_t msg_size, uint32_t capacity){
+int os_queue_init(os_queue_t *queue, void *storage, uint32_t msg_size, uint32_t capacity){
     if(queue == NULL || storage == NULL || msg_size == 0u || capacity == 0u){
         return -1;
     }
@@ -25,7 +25,7 @@ OS_USER_TEXT int os_queue_init(os_queue_t *queue, void *storage, uint32_t msg_si
     return 0;
 }
 
-OS_USER_TEXT int os_queue_send(os_queue_t *queue, const void *msg){
+int os_queue_send(os_queue_t *queue, const void *msg){
     uint8_t *slot;
     int ret;
 
@@ -60,7 +60,7 @@ OS_USER_TEXT int os_queue_send(os_queue_t *queue, const void *msg){
     return os_sem_give(&queue->items);
 }
 
-OS_USER_TEXT int os_queue_recv(os_queue_t *queue, void *msg){
+int os_queue_recv(os_queue_t *queue, void *msg){
     uint8_t *slot;
     int ret;
 

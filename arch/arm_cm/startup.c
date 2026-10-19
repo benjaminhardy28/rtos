@@ -4,16 +4,11 @@ typedef void (*isr_t)(void);
 
 extern uint32_t _estack;
 
-extern uint32_t __user_data_load__;
-extern uint32_t __user_data_start__;
-extern uint32_t __user_data_end__;
-extern uint32_t __kernel_data_load__;
-extern uint32_t __kernel_data_start__;
-extern uint32_t __kernel_data_end__;
-extern uint32_t __user_bss_start__;
-extern uint32_t __user_bss_end__;
-extern uint32_t __kernel_bss_start__;
-extern uint32_t __kernel_bss_end__;
+extern uint32_t __data_load__;
+extern uint32_t __data_start__;
+extern uint32_t __data_end__;
+extern uint32_t __bss_start__;
+extern uint32_t __bss_end__;
 
 void os_boot_main(void);
 
@@ -65,11 +60,9 @@ static void os_zero_words(uint32_t *dst, uint32_t *end)
 // Initialize memory
 void Reset_Handler(void)
 {   // execution pauses here when a debugger halts at reset (e.g. Renode's `-S`-style start)
-  os_copy_words(&__user_data_start__, &__user_data_load__, &__user_data_end__);
-  os_copy_words(&__kernel_data_start__, &__kernel_data_load__, &__kernel_data_end__);
+  os_copy_words(&__data_start__, &__data_load__, &__data_end__);
 
-  os_zero_words(&__user_bss_start__, &__user_bss_end__);
-  os_zero_words(&__kernel_bss_start__, &__kernel_bss_end__);
+  os_zero_words(&__bss_start__, &__bss_end__);
 
   os_boot_main();
 

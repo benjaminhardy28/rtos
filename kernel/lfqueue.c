@@ -1,7 +1,7 @@
 #include "lfqueue.h"
 
 
-OS_USER_TEXT static uint32_t lfqueue_next_index(const os_spsc_queue_t *queue, uint32_t index) {
+static uint32_t lfqueue_next_index(const os_spsc_queue_t *queue, uint32_t index) {
     index++;
     if (index == queue->capacity) {
         index = 0u;
@@ -9,7 +9,7 @@ OS_USER_TEXT static uint32_t lfqueue_next_index(const os_spsc_queue_t *queue, ui
     return index;
 }
 
-OS_USER_TEXT int lfqueue_init(os_spsc_queue_t *queue, void *storage, uint32_t msg_size, uint32_t capacity){
+int lfqueue_init(os_spsc_queue_t *queue, void *storage, uint32_t msg_size, uint32_t capacity){
     if(queue == NULL || storage == NULL || msg_size == 0u || capacity < 2u){
         return -1;
     }
@@ -23,7 +23,7 @@ OS_USER_TEXT int lfqueue_init(os_spsc_queue_t *queue, void *storage, uint32_t ms
     return 0;
 }
 
-OS_USER_TEXT void* get_write_location(os_spsc_queue_t *queue){
+void* get_write_location(os_spsc_queue_t *queue){
     uint32_t next_write;
     uint32_t write_index;
     uint32_t read_index;
@@ -39,7 +39,7 @@ OS_USER_TEXT void* get_write_location(os_spsc_queue_t *queue){
     return (void*)(queue->storage + (write_index * queue->msg_size));
 }
 
-OS_USER_TEXT int update_write_index(os_spsc_queue_t *queue){
+int update_write_index(os_spsc_queue_t *queue){
     uint32_t write_index;
 
     if (queue == NULL) {
@@ -53,7 +53,7 @@ OS_USER_TEXT int update_write_index(os_spsc_queue_t *queue){
     return 0;
 }
 
-OS_USER_TEXT void* get_read_location(os_spsc_queue_t *queue){
+void* get_read_location(os_spsc_queue_t *queue){
     uint32_t read_index;
     uint32_t write_index;
 
@@ -69,7 +69,7 @@ OS_USER_TEXT void* get_read_location(os_spsc_queue_t *queue){
     return (void *)(queue->storage + (read_index * queue->msg_size));
 }
 
-OS_USER_TEXT int update_read_index(os_spsc_queue_t *queue){
+int update_read_index(os_spsc_queue_t *queue){
     uint32_t read_index;
 
     if (queue == NULL) {

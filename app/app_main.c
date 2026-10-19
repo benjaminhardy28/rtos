@@ -5,25 +5,24 @@
 #include "../include/os/rtt.h"
 #include "../include/os/task.h"
 #include "../include/os/tick.h"
-#include "../include/os/section.h"
 #include <stddef.h>
 #include <stdint.h>
 
-OS_USER_BSS volatile uint32_t g_bss;
+volatile uint32_t g_bss;
 
-OS_USER_BSS volatile uint32_t g_reached_main;
+volatile uint32_t g_reached_main;
 
-OS_USER_BSS static os_spsc_queue_t g_queue;
-OS_USER_BSS static uint32_t g_queue_storage[8];
+static os_spsc_queue_t g_queue;
+static uint32_t g_queue_storage[8];
 
 /* Debug variables you can watch in GDB */
-OS_USER_BSS volatile uint32_t g_task1_sent;
-OS_USER_BSS volatile uint32_t g_task2_recv;
-OS_USER_BSS volatile uint32_t g_last_sent;
-OS_USER_BSS volatile uint32_t g_last_recv;
-OS_USER_BSS volatile uint32_t g_error_count;
+volatile uint32_t g_task1_sent;
+volatile uint32_t g_task2_recv;
+volatile uint32_t g_last_sent;
+volatile uint32_t g_last_recv;
+volatile uint32_t g_error_count;
 
-OS_USER_TEXT static void task0(void *arg) {
+static void task0(void *arg) {
     uint32_t value = 1;
     uint32_t *slot;
 
@@ -50,7 +49,7 @@ OS_USER_TEXT static void task0(void *arg) {
     }
 }
 
-OS_USER_TEXT static void task1(void *arg) {
+static void task1(void *arg) {
     uint32_t value;
     uint32_t expected = 1;
     uint32_t *slot;
@@ -83,7 +82,7 @@ OS_USER_TEXT static void task1(void *arg) {
     }
 }
 
-OS_USER_TEXT void os_app_main(void)
+void os_app_main(void)
 {
     g_reached_main = 0xA5A5A5A5;
 

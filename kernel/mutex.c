@@ -1,8 +1,7 @@
 #include "mutex.h"
 #include <stdint.h>
-#include "../include/os/syscall.h"
 
-OS_USER_TEXT int os_mutex_init(os_mutex_t *mutex) {
+int os_mutex_init(os_mutex_t *mutex) {
     if (!mutex) {
         return -1;
     }
@@ -13,11 +12,7 @@ OS_USER_TEXT int os_mutex_init(os_mutex_t *mutex) {
     return 0;
 }
 
-OS_USER_TEXT int os_mutex_lock(os_mutex_t *mutex) {
-    return (int)os_port_svc_call1(OS_SYSCALL_MUTEX_LOCK, (uint32_t)(uintptr_t)mutex);
-}
-
-OS_KERNEL_TEXT int os_kernel_mutex_lock(os_mutex_t *mutex) {
+int os_mutex_lock(os_mutex_t *mutex) {
     uint32_t key;
 
     if (!mutex) {
@@ -63,11 +58,7 @@ OS_KERNEL_TEXT int os_kernel_mutex_lock(os_mutex_t *mutex) {
 }
 
 
-OS_USER_TEXT int os_mutex_unlock(os_mutex_t *mutex) {
-    return (int)os_port_svc_call1(OS_SYSCALL_MUTEX_UNLOCK, (uint32_t)(uintptr_t)mutex);
-}
-
-OS_KERNEL_TEXT int os_kernel_mutex_unlock(os_mutex_t *mutex) {
+int os_mutex_unlock(os_mutex_t *mutex) {
     uint32_t key;
     os_tcb_t *next_owner;
 

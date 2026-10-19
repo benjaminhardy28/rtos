@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include "../arch/arm_cm/port.h"
 #include "../bsp/stm32f103/systick.h"
-#include "../include/os/section.h"
 #include "../include/os/task.h"
 #include "../include/os/mutex.h"
 #include <stddef.h>
@@ -38,7 +37,5 @@ typedef struct os_tcb_t {
 extern os_tcb_t *g_current;
 extern os_tcb_t *g_next;
 
-OS_KERNEL_TEXT int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
-OS_KERNEL_TEXT int os_kernel_task_create(const os_task_create_args_t *args);
+int os_task_create_internal(os_tcb_t *tcb, os_task_priority_t priority, os_task_fn_t entry, void *arg, uint32_t *stack_mem, uint32_t stack_words);
 void os_start(void); // start the scheduler, picks first task to run
-void os_kernel_yield(void); // privileged implementation behind os_yield()

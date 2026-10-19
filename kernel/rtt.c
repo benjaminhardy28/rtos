@@ -1,5 +1,4 @@
 #include "../include/os/rtt.h"
-#include "../include/os/section.h"
 #include "../arch/arm_cm/port.h"
 #include <stdint.h>
 
@@ -25,12 +24,11 @@ typedef struct {
     os_rtt_channel_t down[1];
 } os_rtt_cb_t;
 
-// Both channels live in user RAM/flash which is not kernel protected by the MPU
-OS_USER_BSS static char g_rtt_up_buf[OS_RTT_UP_BUF_SIZE];
-OS_USER_BSS static char g_rtt_down_buf[OS_RTT_DOWN_BUF_SIZE];
+static char g_rtt_up_buf[OS_RTT_UP_BUF_SIZE];
+static char g_rtt_down_buf[OS_RTT_DOWN_BUF_SIZE];
 
 // "used" forces the compiler to include this struct, since it is not used
-OS_USER_DATA volatile os_rtt_cb_t g_rtt_cb __attribute__((used)) = {
+volatile os_rtt_cb_t g_rtt_cb __attribute__((used)) = {
     .id       = "SEGGER RTT",
     .max_up   = 1,
     .max_down = 1,
@@ -40,7 +38,7 @@ OS_USER_DATA volatile os_rtt_cb_t g_rtt_cb __attribute__((used)) = {
                .wr_off = 0u, .rd_off = 0u, .flags = OS_RTT_MODE_NO_BLOCK_SKIP }},
 };
 
-OS_USER_TEXT void os_rtt_write(const char *data, uint32_t len) {
+void os_rtt_write(const char *data, uint32_t len) {
     volatile os_rtt_channel_t *ch = &g_rtt_cb.up[0];
     uint32_t primask;
     uint32_t i;
@@ -63,7 +61,7 @@ OS_USER_TEXT void os_rtt_write(const char *data, uint32_t len) {
 }
 
 // wrapper function to not have to pass in length
-OS_USER_TEXT void os_rtt_puts(const char *str) {
+void os_rtt_puts(const char *str) {
     uint32_t len = 0u;
 
     while (str[len] != '\0') {
@@ -73,7 +71,7 @@ OS_USER_TEXT void os_rtt_puts(const char *str) {
 }
 
 // read data sent to MCU
-OS_USER_TEXT uint32_t os_rtt_read(char *data, uint32_t len) {
+uint32_t os_rtt_read(char *data, uint32_t len) {
     volatile os_rtt_channel_t *ch = &g_rtt_cb.down[0];
     uint32_t primask;
     uint32_t count = 0u;
@@ -90,7 +88,7 @@ OS_USER_TEXT uint32_t os_rtt_read(char *data, uint32_t len) {
 }
 
 /* Converts value to decimal ASCII in out, returns the digit count. */
-OS_USER_TEXT uint32_t u32_to_str(uint32_t value, char *out) {
+uint32_t u32_to_str(uint32_t value, char *out) {
     char tmp[10];
     uint32_t len = 0;
     uint32_t i;
