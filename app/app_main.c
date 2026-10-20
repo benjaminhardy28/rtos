@@ -42,8 +42,9 @@ static void task0(void *arg) {
             os_rtt_write(clock_buf, clock_len);
             g_task1_sent++;
             value++;
-            os_yield();
+           
         }
+        os_yield();
 
     //    os_delay_ticks(10);
     }
@@ -75,8 +76,8 @@ static void task1(void *arg) {
             } else {
                 expected++;
             }
-            os_yield();
         }
+        os_yield();
 
         //os_delay_ticks(15);
     }

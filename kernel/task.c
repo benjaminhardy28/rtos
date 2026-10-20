@@ -153,7 +153,15 @@ void os_start(void) { // start the scheduler, picks first task to run
 
 
 void os_yield(void) { // cooperative yield: switches away from current task. Picks next task then triggers PendSV
+  uint32_t primask;
+
+  // SysTick_Handler touches the same ready-queue list (rotate + schedule) from interrupt
+  // context; without this, a tick firing mid-rotate here corrupts the list and can drop
+  // a task from scheduling permanently.
+  primask = os_port_irq_save();
   os_ready_queue_rotate(g_current); // move current task to end of its priority's ready queue for round-robin scheduling among same priority tasks
   os_schedule(); // pick next task
+  os_port_irq_restore(primask);
+
   os_port_pendsv_trigger(); // trigger PendSV to perform context switch
 }
